@@ -72,7 +72,7 @@ class Env:
         if self.test:
             map_dir = f'maps_test'
         else:
-            map_dir = f'maps_special'
+            map_dir = f'maps_train'
         map_list = os.listdir(map_dir)
         map_index = episode_index % np.size(map_list)
 
