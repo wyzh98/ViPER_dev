@@ -131,8 +131,8 @@ class NodeManager:
                 if dist < nearest_dist:
                     nearest_dist = dist
                     nearest_utility_coords = coords
-                # print(nearest_dist, coords, nearest_utility_coords, robot_location)
         path_coords, dist = self.a_star(robot_location, nearest_utility_coords)
+
         guidepost = np.zeros_like(explore_utility)
         for coords in path_coords:
             if coords[0] != robot_location[0] or coords[1] != robot_location[1]:
