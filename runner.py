@@ -20,7 +20,6 @@ class Runner(object):
 
     def do_job(self, episode_number):
         save_img = True if episode_number % SAVE_IMG_GAP == 0 else False
-        # save_img = True
         worker = Multi_agent_worker(self.meta_agent_id, self.local_network, episode_number, device=self.device, save_image=save_img)
         worker.run_episode()
 
@@ -30,7 +29,7 @@ class Runner(object):
 
     def job(self, weights_set, episode_number):
         print("starting episode {} on metaAgent {}".format(episode_number, self.meta_agent_id))
-        # set the local weights to the global weight values from the master network
+
         self.set_policy_net_weights(weights_set[0])
 
         job_results, metrics = self.do_job(episode_number)

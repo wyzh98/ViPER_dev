@@ -1,7 +1,5 @@
-import matplotlib.pyplot as plt
 from skimage import io
 from skimage.measure import block_reduce
-from scipy import ndimage
 from copy import deepcopy
 
 from sensor import exploration_sensor, coverage_sensor, decrease_safety_by_frontier
@@ -20,7 +18,7 @@ class Env:
         self.ground_truth, initial_cell = self.import_ground_truth(episode_index)
         self.cell_size = CELL_SIZE  # meter
         self.sensor_range = SENSOR_RANGE  # meter
-        self.safety_range = SAFETY_RANGE  # meter
+        self.safety_range = EVADER_SPEED  # meter
         self.belief_origin_x = -np.round(initial_cell[0] * self.cell_size, 1)  # meter
         self.belief_origin_y = -np.round(initial_cell[1] * self.cell_size, 1)  # meter
 
@@ -40,17 +38,7 @@ class Env:
         self.safe_info = Map_info(self.safe_zone, self.belief_origin_x, self.belief_origin_y, self.cell_size)
         self.counter_safe_info = deepcopy(self.safe_info)
 
-        free, _ = get_local_node_coords(np.array([0.0, 0.0]), self.belief_info)
-        if GROUP_START:
-            free = free if explore else free[np.argsort(np.linalg.norm(free, axis=1))[:self.n_agent * 2]]
-            choice = np.random.choice(free.shape[0], self.n_agent, replace=False)
-            start_loc = free[choice]
-            self.robot_locations = np.array(start_loc)
-        else:
-            free = free[~(np.all(free == [0, 0], axis=1))]
-            choice = np.random.choice(free.shape[0], self.n_agent - 1, replace=False)
-            start_loc = free[choice]
-            self.robot_locations = np.vstack([start_loc, np.zeros((1, 2))])
+        self.robot_locations = self.set_initial_location()
 
         robot_cells = get_cell_position_from_coords(self.robot_locations, self.belief_info)
         for robot_cell in robot_cells:
@@ -77,16 +65,28 @@ class Env:
         map_index = episode_index % np.size(map_list)
 
         ground_truth = (io.imread(map_dir + '/' + map_list[map_index], 1)).astype(int)  # 127: obstacle, 195: free, 208: start
-        # ground_truth = (io.imread(map_dir + '/' + map_list[map_index], 1) * 255).astype(int)  # 127: obstacle, 195: free, 208: start
         ground_truth = block_reduce(ground_truth, 2, np.min)
         robot_cell = np.array(np.nonzero(ground_truth == 208))
-        # robot_cell = np.array(np.nonzero(ground_truth == 54))
         robot_cell = np.array([robot_cell[1, 10], robot_cell[0, 10]])
 
         ground_truth = (ground_truth > 150) | ((ground_truth <= 80) & (ground_truth >= 50))
         ground_truth = ground_truth * 254 + 1
 
         return ground_truth, robot_cell
+
+    def set_initial_location(self):
+        free, _ = get_local_node_coords(np.array([0.0, 0.0]), self.belief_info)
+        if GROUP_START:
+            free = free if self.explore else free[np.argsort(np.linalg.norm(free, axis=1))[:self.n_agent * 2]]
+            choice = np.random.choice(free.shape[0], self.n_agent, replace=False)
+            start_loc = free[choice]
+            robot_locations = np.array(start_loc)
+        else:
+            free = free[~(np.all(free == [0, 0], axis=1))]
+            choice = np.random.choice(free.shape[0], self.n_agent - 1, replace=False)
+            start_loc = free[choice]
+            robot_locations = np.vstack([start_loc, np.zeros((1, 2))])
+        return robot_locations
 
     def update_robot_belief(self, robot_cell):
         self.robot_belief = exploration_sensor(robot_cell, round(self.sensor_range / self.cell_size), self.robot_belief, self.ground_truth)
@@ -164,38 +164,8 @@ class Env:
         self.uncovered_safe_frontiers = np.array(self.uncovered_safe_frontiers).reshape(-1, 2)
         self.covered_safe_frontiers = np.array(self.covered_safe_frontiers).reshape(-1, 2)
 
-    @staticmethod
-    def get_positive_cluster_info(diff_map):
-        diff_map = deepcopy(diff_map)
-        diff_map[diff_map < 0] = 0
-        clusters, n_clusters = ndimage.label(diff_map, structure=np.ones((3, 3)))
-        cluster_centers = []
-        cluster_size = []
-        for i in range(n_clusters):
-            cluster = np.argwhere(clusters == i + 1)
-            cluster_centers.append(np.mean(cluster, axis=0))
-            cluster_size.append(cluster.shape[0])
-        return cluster_centers, cluster_size
-
-    def calculate_safety_change_clusters(self):
-        # Separate safety increase and decrease to avoid structual connection
-        inc_centers, inc_sizes = self.get_positive_cluster_info(self.safe_zone - self.old_safe_zone)
-        dec_centers, dec_sizes = self.get_positive_cluster_info(self.old_safe_zone - self.safe_zone)
-        dec_sizes = [-s for s in dec_sizes]
-        cluster_centers = inc_centers + dec_centers
-        cluster_sizes = inc_sizes + dec_sizes
-        return np.asarray(cluster_centers), np.asarray(cluster_sizes)
-
     def calculate_reward(self, dist_list):
         safety_increase = np.sum(self.safe_zone == 255) - np.sum(self.old_safe_zone == 255)
-
-        # reward_list = np.zeros(self.n_agent)
-        # cluster_centers, cluster_sizes = self.calculate_safety_change_clusters()
-        # robot_cells = get_cell_position_from_coords(self.robot_locations, self.belief_info)
-        # for center, cluster_size in zip(cluster_centers, cluster_sizes):
-        #     inverse_dist = 1 / (np.linalg.norm(robot_cells - center, axis=1) + 1)
-        #     weights = inverse_dist / np.sum(inverse_dist)
-        #     reward_list += weights * cluster_size / 1000
 
         reward_list = np.ones(self.n_agent) * safety_increase / self.n_agent / 1000
 

@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 from copy import deepcopy
 from env import Env
 from agent import Agent
@@ -52,11 +53,6 @@ class Multi_agent_worker:
                 next_location, next_node_index, action_index = robot.select_next_waypoint(local_observation)
                 robot.save_action(action_index)
 
-                node = robot.node_manager.local_nodes_dict.find((robot.location[0], robot.location[1]))
-                check = np.array(node.data.neighbor_list)
-                assert next_location[0] + next_location[1] * 1j in check[:, 0] + check[:, 1] * 1j, print(next_location,
-                                                                                                         robot.location,
-                                                                                                         node.data.neighbor_list)
                 selected_locations.append(next_location)
                 dist_list.append(np.linalg.norm(next_location - robot.location))
                 next_node_index_list.append(next_node_index)
@@ -159,9 +155,7 @@ class Multi_agent_worker:
             plt.plot((np.array(robot.trajectory_x) - robot.global_map_info.map_origin_x) / robot.cell_size,
                      (np.array(robot.trajectory_y) - robot.global_map_info.map_origin_y) / robot.cell_size, c,
                      linewidth=2, zorder=3)
-            # guidepost = robot.local_node_coords[np.where(robot.guidepost == 1)[0]]
-            # guidepost_cell = get_cell_position_from_coords(guidepost, robot.global_map_info).reshape(-1, 2)
-            # plt.scatter(guidepost_cell[:, 0], guidepost_cell[:, 1], c=c, marker='*', s=11, zorder=7)
+
             if robot.id == 0:
                 nodes = get_cell_position_from_coords(robot.local_node_coords, robot.safe_zone_info)
                 plt.scatter(nodes[:, 0], nodes[:, 1], c=robot.explore_utility, zorder=2)
@@ -189,11 +183,6 @@ class Multi_agent_worker:
                 plt.imshow(robot.safe_zone_info.map, cmap='Greens', alpha=alpha_mask)
                 plt.axis('off')
                 plt.scatter(nodes[:, 0], nodes[:, 1], c=robot.safe_utility, zorder=2)
-                # for i, (x, y) in enumerate(nodes):
-                #     plt.text(x, y, f"{robot.safe_utility[i]}", fontsize=5, ha='center', va='center')
-                # signal = robot.local_node_coords[np.where(robot.signal == 1)[0]]
-                # signal_cell = get_cell_position_from_coords(signal, robot.global_map_info).reshape(-1, 2)
-                # plt.scatter(signal_cell[:, 0], signal_cell[:, 1], c='w', marker='.', s=2, zorder=3, alpha=0.5)
 
             robot_cell = get_cell_position_from_coords(robot.location, robot.safe_zone_info)
             plt.plot(robot_cell[0], robot_cell[1], c+'o', markersize=13, zorder=5)
@@ -213,7 +202,7 @@ class Multi_agent_worker:
 if __name__ == '__main__':
     from parameter import *
     policy_net = PolicyNet(LOCAL_NODE_INPUT_DIM, EMBEDDING_DIM)
-    # ckp = torch.load('model/advsearch_14_nogru/checkpoint.pth', map_location='cpu')
+    # ckp = torch.load('model/viper/checkpoint.pth', map_location='cpu')
     # policy_net.load_state_dict(ckp['policy_model'])
-    worker = Multi_agent_worker(0, policy_net, 0, 'cpu', True)
+    worker = Multi_agent_worker(0, policy_net, 0, 'cpu', False)
     worker.run_episode()

@@ -106,7 +106,7 @@ class Runner(object):
 
     def job(self, weights, episode_number):
         print("starting episode {} on metaAgent {}".format(episode_number, self.meta_agent_id))
-        # set the local weights to the global weight values from the master network
+
         self.set_weights(weights)
 
         metrics = self.do_job(episode_number)

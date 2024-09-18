@@ -202,48 +202,6 @@ def remove_isolate_frontiers(data, voxel_size):
     return data
 
 
-def get_partial_map_from_center(original_map_info, center_coords, partial_map_size):
-    partial_map_origin_x = (center_coords[
-                              0] - partial_map_size / 2) // NODE_RESOLUTION * NODE_RESOLUTION
-    partial_map_origin_y = (center_coords[
-                              1] - partial_map_size / 2) // NODE_RESOLUTION * NODE_RESOLUTION
-    partial_map_top_x = partial_map_origin_x + partial_map_size + NODE_RESOLUTION
-    partial_map_top_y = partial_map_origin_y + partial_map_size + NODE_RESOLUTION
-
-    min_x = original_map_info.map_origin_x
-    min_y = original_map_info.map_origin_y
-    max_x = original_map_info.map_origin_x + original_map_info.cell_size * original_map_info.map.shape[1]
-    max_y = original_map_info.map_origin_y + original_map_info.cell_size * original_map_info.map.shape[0]
-
-    if partial_map_origin_x < min_x:
-        partial_map_origin_x = min_x
-    if partial_map_origin_y < min_y:
-        partial_map_origin_y = min_y
-    if partial_map_top_x > max_x:
-        partial_map_top_x = max_x
-    if partial_map_top_y > max_y:
-        partial_map_top_y = max_y
-
-    partial_map_origin_x = np.around(partial_map_origin_x, 1)
-    partial_map_origin_y = np.around(partial_map_origin_y, 1)
-    partial_map_top_x = np.around(partial_map_top_x, 1)
-    partial_map_top_y = np.around(partial_map_top_y, 1)
-
-    partial_map_origin = np.array([partial_map_origin_x, partial_map_origin_y])
-    partial_map_origin_in_global_map = get_cell_position_from_coords(partial_map_origin, original_map_info)
-
-    partial_map_top = np.array([partial_map_top_x, partial_map_top_y])
-    partial_map_top_in_global_map = get_cell_position_from_coords(partial_map_top, original_map_info)
-
-    partial_map = original_map_info.map[
-                partial_map_origin_in_global_map[1]:partial_map_top_in_global_map[1],
-                partial_map_origin_in_global_map[0]:partial_map_top_in_global_map[0]]
-
-    partial_map_info = Map_info(partial_map, partial_map_origin_x, partial_map_origin_y, original_map_info.cell_size)
-
-    return partial_map_info
-
-
 def check_collision(start, end, map_info, max_collision=1):
     # Bresenham line algorithm checking
     collision = False
@@ -281,49 +239,6 @@ def check_collision(start, end, map_info, max_collision=1):
         else:
             y += y_inc
             error += dx
-    return collision
-
-
-def check_cumulative_collision(start, end, map_info, max_collision=1):
-    collision = False
-
-    start_cell = get_cell_position_from_coords(start, map_info)
-    end_cell = get_cell_position_from_coords(end, map_info)
-    map = map_info.map
-
-    x0 = start_cell[0]
-    y0 = start_cell[1]
-    x1 = end_cell[0]
-    y1 = end_cell[1]
-    dx, dy = abs(x1 - x0), abs(y1 - y0)
-    x, y = x0, y0
-    error = dx - dy
-    x_inc = 1 if x1 > x0 else -1
-    y_inc = 1 if y1 > y0 else -1
-    dx *= 2
-    dy *= 2
-
-    collision_flag = 0
-    last_k = -1
-
-    while 0 <= x < map.shape[1] and 0 <= y < map.shape[0]:
-        k = map.item(int(y), int(x))
-        if x == x1 and y == y1:
-            break
-        if k in [0, 1, 127]:
-            collision_flag += 1
-            if collision_flag >= max_collision:
-                collision = True
-                break
-        if error > 0:
-            x += x_inc
-            error -= dy
-        else:
-            y += y_inc
-            error += dx
-        if last_k != k and collision_flag > 0:
-            collision_flag -= 1
-        last_k = k
     return collision
 
 

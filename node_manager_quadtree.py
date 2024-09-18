@@ -290,19 +290,6 @@ class NodeManager:
 
         return dist_dict, prev_dict
 
-    def get_Dijkstra_path_and_dist(self, dist_dict, prev_dict, end):
-        dist = dist_dict[(end[0], end[1])]
-
-        path = [(end[0], end[1])]
-        prev_node = prev_dict[(end[0], end[1])]
-        while prev_node is not None:
-            path.append(prev_node)
-            temp = prev_node
-            prev_node = prev_dict[temp]
-
-        path.reverse()
-        return path[1:], np.round(dist, 2)
-
 
 class LocalNode:
     def __init__(self, coords, local_frontiers, extended_local_map_info):

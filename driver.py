@@ -1,5 +1,3 @@
-import copy
-
 import torch
 import torch.optim as optim
 import torch.nn as nn
@@ -56,7 +54,6 @@ def main():
         vars(parameter).__delitem__('__builtins__')
         wandb.init(project='MASafezone', name=FOLDER_NAME, entity='ezo', config=vars(parameter), resume='allow',
                    id=None, notes=None)
-        # wandb.watch([global_policy_net, global_q_net1], log='all', log_freq=1000, log_graph=False)
 
     # load model and optimizer trained before
     if LOAD_MODEL:
@@ -248,7 +245,6 @@ def main():
                     log_alpha_optimizer.step()
 
                     target_q_update_counter += 1
-                    # print("target q update counter", target_q_update_counter % 1024)
 
                 # data record to be written in tensorboard
                 perf_data = []

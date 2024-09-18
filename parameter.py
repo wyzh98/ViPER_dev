@@ -3,20 +3,20 @@ model_path = f'model/{FOLDER_NAME}'
 train_path = f'train/{FOLDER_NAME}'
 gifs_path = f'gifs/{FOLDER_NAME}'
 SUMMARY_WINDOW = 2
-LOAD_MODEL = False  # do you want to load the model trained before
+LOAD_MODEL = False  # load trained model and resume training
 SAVE_IMG_GAP = 1000
 
 N_AGENTS = 4
 
-EXPLORATION = True
+EXPLORATION = True  # unknown or known map beforehand
 
 CELL_SIZE = 0.4  # pixel in meter
 NODE_RESOLUTION = 4.0  # node in meter
 DOWNSAMPLE_SIZE = NODE_RESOLUTION // CELL_SIZE
 
-SENSOR_RANGE = 20  # meter, 7.9812 for Gregorin maps
+SENSOR_RANGE = 20  # meter, 7.9812 for Gregorin's maps
 UTILITY_RANGE = 0.8 * SENSOR_RANGE
-SAFETY_RANGE = SENSOR_RANGE
+EVADER_SPEED = SENSOR_RANGE
 MIN_UTILITY = 0
 FRONTIER_CELL_SIZE = 4 * CELL_SIZE
 
@@ -40,4 +40,4 @@ USE_GPU = False  # do you want to collect training data using GPUs
 USE_GPU_GLOBAL = True  # do you want to train the network using GPUs
 NUM_GPU = 1
 NUM_META_AGENT = 24
-USE_WANDB = True
+USE_WANDB = False
