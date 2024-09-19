@@ -8,10 +8,10 @@ SAVE_IMG_GAP = 1000
 
 N_AGENTS = 4
 
-EXPLORATION = True  # unknown or known map beforehand
+EXPLORATION = True  # True: unknown map, False: known map
 
-CELL_SIZE = 0.4  # pixel in meter
-NODE_RESOLUTION = 4.0  # node in meter
+CELL_SIZE = 0.4  # meter per pixel
+NODE_RESOLUTION = 4.0  # meter of node interval
 DOWNSAMPLE_SIZE = NODE_RESOLUTION // CELL_SIZE
 
 SENSOR_RANGE = 20  # meter, 7.9812 for Gregorin's maps
@@ -39,5 +39,5 @@ LOCAL_NODE_PADDING_SIZE = 360  # the number of nodes will be padded to this valu
 USE_GPU = False  # do you want to collect training data using GPUs
 USE_GPU_GLOBAL = True  # do you want to train the network using GPUs
 NUM_GPU = 1
-NUM_META_AGENT = 24
+NUM_META_AGENT = 24  # number of parallel environments
 USE_WANDB = False

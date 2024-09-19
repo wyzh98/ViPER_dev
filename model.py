@@ -247,7 +247,6 @@ class PolicyNet(nn.Module):
 
         return logp
 
-    # @torch.compile
     def forward(self, node_inputs, node_padding_mask, edge_mask, current_index, current_edge, edge_padding_mask):
         enhanced_node_feature = self.encode_graph(node_inputs, node_padding_mask, edge_mask)
         current_node_feature, enhanced_current_node_feature = self.decode_state(enhanced_node_feature, current_index,

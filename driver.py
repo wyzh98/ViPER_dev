@@ -16,10 +16,8 @@ ray.init()
 print("Welcome to RL Adversarial Search!")
 
 writer = SummaryWriter(train_path)
-if not os.path.exists(model_path):
-    os.makedirs(model_path)
-if not os.path.exists(gifs_path):
-    os.makedirs(gifs_path)
+os.makedirs(model_path, exist_ok=True)
+os.makedirs(gifs_path, exist_ok=True)
 
 
 def main():

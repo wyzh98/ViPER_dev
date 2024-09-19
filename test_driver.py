@@ -12,10 +12,7 @@ def run_test():
     device = torch.device('cuda') if USE_GPU else torch.device('cpu')
     global_network = PolicyNet(INPUT_DIM, EMBEDDING_DIM).to(device)
 
-    if device == 'cuda':
-        checkpoint = torch.load(f'{model_path}/checkpoint.pth')
-    else:
-        checkpoint = torch.load(f'{model_path}/checkpoint.pth', map_location=torch.device('cpu'))
+    checkpoint = torch.load(f'{model_path}/checkpoint.pth', weights_only=True)
 
     global_network.load_state_dict(checkpoint['policy_model'])
 
@@ -98,7 +95,8 @@ class Runner(object):
         self.local_network.load_state_dict(weights)
 
     def do_job(self, episode_number):
-        worker = TestWorker(self.meta_agent_id, self.local_network, episode_number, device=self.device, save_image=SAVE_GIFS, greedy=True)
+        worker = TestWorker(self.meta_agent_id, self.local_network, episode_number, device=self.device,
+                            save_image=SAVE_GIFS, greedy=True, test=True)
         worker.run_episode()
 
         perf_metrics = worker.perf_metrics
@@ -121,5 +119,4 @@ class Runner(object):
 
 if __name__ == '__main__':
     ray.init()
-    for i in range(NUM_RUN):
-        run_test()
+    run_test()

@@ -58,7 +58,7 @@ class Env:
 
     def import_ground_truth(self, episode_index):
         if self.test:
-            map_dir = f'maps_test'
+            map_dir = self.test if isinstance(self.test, str) else f'maps_test'
         else:
             map_dir = f'maps_train'
         map_list = os.listdir(map_dir)
