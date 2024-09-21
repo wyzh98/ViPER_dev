@@ -155,8 +155,7 @@ class Agent:
             padding = torch.nn.ConstantPad2d((0, LOCAL_NODE_PADDING_SIZE - n_local_node, 0, LOCAL_NODE_PADDING_SIZE - n_local_node), 1)
             local_edge_mask = padding(local_edge_mask)
 
-        # current_in_edge = np.argwhere(current_local_edge == self.current_local_index)[0][0]
-        current_local_edge = torch.tensor(current_local_edge).unsqueeze(0)
+        current_local_edge = torch.tensor(current_local_edge).unsqueeze(0).to(self.device)
         k_size = current_local_edge.size()[-1]
         if pad:
             padding = torch.nn.ConstantPad1d((0, LOCAL_K_SIZE - k_size), 0)
@@ -164,6 +163,7 @@ class Agent:
         current_local_edge = current_local_edge.unsqueeze(-1)
 
         local_edge_padding_mask = torch.zeros((1, 1, k_size), dtype=torch.int16).to(self.device)
+        # current_in_edge = np.argwhere(current_local_edge == self.current_local_index)[0][0]
         # local_edge_padding_mask[0, 0, current_in_edge] = 1  # do not allow stay at the same node
         if pad:
             padding = torch.nn.ConstantPad1d((0, LOCAL_K_SIZE - k_size), 1)

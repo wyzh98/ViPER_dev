@@ -15,10 +15,10 @@ class Env:
         self.n_agent = n_agent
         self.explore = explore
 
-        self.ground_truth, initial_cell = self.import_ground_truth(episode_index)
         self.cell_size = CELL_SIZE  # meter
         self.sensor_range = SENSOR_RANGE  # meter
         self.safety_range = EVADER_SPEED  # meter
+        self.ground_truth, initial_cell = self.import_ground_truth(episode_index)
         self.belief_origin_x = -np.round(initial_cell[0] * self.cell_size, 1)  # meter
         self.belief_origin_y = -np.round(initial_cell[1] * self.cell_size, 1)  # meter
 
@@ -57,10 +57,7 @@ class Env:
 
 
     def import_ground_truth(self, episode_index):
-        if self.test:
-            map_dir = self.test if isinstance(self.test, str) else f'maps_test'
-        else:
-            map_dir = f'maps_train'
+        map_dir = 'maps_test' if self.test else 'maps_train'
         map_list = os.listdir(map_dir)
         map_index = episode_index % np.size(map_list)
 

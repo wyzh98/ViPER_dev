@@ -18,7 +18,7 @@ pip install ray opencv-python wandb
 Download our map dataset (4000 maps) for training. It will be extracted to `ViPER/maps_train/`:
 
 ```bash
-wget -O maps_train.zip "https://www.dropbox.com/scl/fi/rvl4fe5oa54d4xcbbaib4/maps_train.zip?rlkey=gluy70kx12cb6basmolsfnufs&st=egjtlb03&dl=1"
+wget -O maps_train.zip "https://www.dropbox.com/scl/fi/b0hosxxfnzv7j0tcoiwq1/maps_train.zip?rlkey=au844wb4dvvo2bbq32x9p2p8x&dl=1"
 unzip maps_train.zip && rm maps_train.zip
 ```
 Set appropriate parameters in `parameter.py` and run `python driver.py` to train the model.
@@ -27,13 +27,12 @@ Set appropriate parameters in `parameter.py` and run `python driver.py` to train
 
 Download pretrained model checkpoint.
 ```bash
-wget -O maps_test.zip "https://www.dropbox.com/scl/fi/307k2mgtxj894lxq2ivdj/maps_test.zip?rlkey=2voorhlfgwh09x228u3u8qtzh&st=l05fcidm&dl=1"
-unzip maps_test.zip && rm maps_test.zip
+wget -O ""
 ```
 
 Download our map test dataset (100 maps) for testing. It will be extracted to `ViPER/maps_test/`.
 ```bash
-wget -O maps_test.zip "https://www.dropbox.com/scl/fi/307k2mgtxj894lxq2ivdj/maps_test.zip?rlkey=2voorhlfgwh09x228u3u8qtzh&st=l05fcidm&dl=1"
+wget -O maps_test.zip "https://www.dropbox.com/scl/fi/8ktuwxxzw4iz4x4hht3o7/maps_test.zip?rlkey=ahcoqn6932z1sepq01kjfqtya&dl=1"
 unzip maps_test.zip && rm maps_test.zip
 ```
 ### Draw Your Map

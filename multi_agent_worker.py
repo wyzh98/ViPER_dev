@@ -124,8 +124,7 @@ class Multi_agent_worker:
 
         for j, selected_location in enumerate(selected_locations_in_arriving_sequence):
             solved_locations = selected_locations_in_arriving_sequence[:j]
-            while selected_location[0] + selected_location[1] * 1j in solved_locations[:, 0] + solved_locations[:,
-                                                                                               1] * 1j:
+            while selected_location[0] + selected_location[1] * 1j in solved_locations[:, 0] + solved_locations[:, 1] * 1j:
                 id = arriving_sequence[j]
                 nearby_nodes = self.robot_list[id].node_manager.local_nodes_dict.nearest_neighbors(
                     selected_location.tolist(), 25)
@@ -143,26 +142,18 @@ class Multi_agent_worker:
 
     def plot_local_env(self, step):
         plt.switch_backend('agg')
-        plt.figure(figsize=(11, 5))
+        plt.figure(figsize=(9, 4))
         plt.subplot(1, 2, 2)
         plt.imshow(self.env.robot_belief, cmap='gray', vmin=0)
         plt.axis('off')
-        color_list = ['r', 'b', 'g', 'y']
-        for robot in self.robot_list:
-            c = color_list[robot.id]
-            robot_cell = get_cell_position_from_coords(robot.location, robot.global_map_info)
-            plt.plot(robot_cell[0], robot_cell[1], c+'o', markersize=13, zorder=5)
-            plt.plot((np.array(robot.trajectory_x) - robot.global_map_info.map_origin_x) / robot.cell_size,
-                     (np.array(robot.trajectory_y) - robot.global_map_info.map_origin_y) / robot.cell_size, c,
-                     linewidth=2, zorder=3)
-
-            if robot.id == 0:
-                nodes = get_cell_position_from_coords(robot.local_node_coords, robot.safe_zone_info)
-                plt.scatter(nodes[:, 0], nodes[:, 1], c=robot.explore_utility, zorder=2)
-
-        if self.env.explore_frontiers.shape[0] != 0:
-            explore_frontier_cells = get_cell_position_from_coords(self.env.explore_frontiers, self.env.belief_info).reshape(-1, 2)
-            plt.scatter(explore_frontier_cells[:, 0], explore_frontier_cells[:, 1], c='b', s=1, zorder=6)
+        color_list = ['r', 'b', 'g', 'y', 'm', 'c', 'k', 'w', (1,0.5,0.5), (0.2,0.5,0.7)]
+        robot = self.robot_list[0]
+        nodes = get_cell_position_from_coords(robot.local_node_coords, robot.safe_zone_info)
+        plt.scatter(nodes[:, 0], nodes[:, 1], c=robot.safe_utility, s=5, zorder=2)
+        for i in range(nodes.shape[0]):
+            for j in range(i + 1, nodes.shape[0]):
+                if robot.local_adjacent_matrix[i, j] == 0:
+                    plt.plot([nodes[i, 0], nodes[j, 0]], [nodes[i, 1], nodes[j, 1]], c=(0.988, 0.557, 0.675), linewidth=1.5, zorder=1)
 
         plt.subplot(1, 2, 1)
         plt.imshow(self.env.robot_belief, cmap='gray')
@@ -175,24 +166,29 @@ class Multi_agent_worker:
         if uncovered_safe_frontier_cells.shape[0] != 0:
             plt.scatter(uncovered_safe_frontier_cells[:, 0], uncovered_safe_frontier_cells[:, 1], c='r', s=1, zorder=6)
 
+        n_segments = len(self.robot_list[0].trajectory_x) - 1
+        alpha_values = np.linspace(0.3, 1, n_segments)
         for robot in self.robot_list:
             c = color_list[robot.id]
             if robot.id == 0:
-                nodes = get_cell_position_from_coords(robot.local_node_coords, robot.safe_zone_info)
                 alpha_mask = robot.safe_zone_info.map / 255 / 3
                 plt.imshow(robot.safe_zone_info.map, cmap='Greens', alpha=alpha_mask)
                 plt.axis('off')
-                plt.scatter(nodes[:, 0], nodes[:, 1], c=robot.safe_utility, zorder=2)
 
             robot_cell = get_cell_position_from_coords(robot.location, robot.safe_zone_info)
-            plt.plot(robot_cell[0], robot_cell[1], c+'o', markersize=13, zorder=5)
+            plt.plot(robot_cell[0], robot_cell[1], c=c, marker='o', markersize=10, zorder=5)
+
+            for i in range(n_segments):
+                plt.plot((np.array(robot.trajectory_x[i:i + 2]) - robot.global_map_info.map_origin_x) / robot.cell_size,
+                         (np.array(robot.trajectory_y[i:i + 2]) - robot.global_map_info.map_origin_y) / robot.cell_size,
+                         c,
+                         linewidth=2, alpha=alpha_values[i], zorder=3)
 
         plt.axis('off')
-        plt.suptitle('Explored ratio: {:.4g} | Safe ratio: {:.4g} | Travel distance: {:.4g}'.format(self.env.explored_rate,
+        plt.suptitle('Explored rate: {:.4g} | Cleared rate: {:.4g} | Trajectory length: {:.4g}'.format(self.env.explored_rate,
                                                                                                 self.env.safe_rate,
                                                                                                 max([robot.travel_dist for robot in self.robot_list])))
         plt.tight_layout()
-        # plt.show()
         plt.savefig('{}/{}_{}_samples.png'.format(gifs_path, self.global_step, step), dpi=150)
         plt.close()
         frame = '{}/{}_{}_samples.png'.format(gifs_path, self.global_step, step)

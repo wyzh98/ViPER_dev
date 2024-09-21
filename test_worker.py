@@ -11,7 +11,7 @@ os.makedirs(gifs_path, exist_ok=True)
 
 
 class TestWorker:
-    def __init__(self, meta_agent_id, policy_net, global_step, device='cpu', save_image=False, greedy=True, test=None):
+    def __init__(self, meta_agent_id, policy_net, global_step, device='cpu', save_image=False, greedy=True, test=True):
         self.meta_agent_id = meta_agent_id
         self.global_step = global_step
         self.save_image = save_image
@@ -128,7 +128,7 @@ class TestWorker:
         if self.save_image:
             make_gif(gifs_path, self.global_step, self.env.frame_files, self.env.explored_rate)
 
-    def plot_local_env(self, step, planned_paths=None):
+    def plot_local_env(self, step):
         plt.switch_backend('agg')
         plt.figure(figsize=(9, 4))
         plt.subplot(1, 2, 2)
@@ -185,7 +185,7 @@ class TestWorker:
 if __name__ == '__main__':
     from model import PolicyNet
     net = PolicyNet(8, 128)
-    ckp = torch.load(f'{model_path}/checkpoint.pth', weights_only=False)
+    ckp = torch.load(f'{model_path}/checkpoint.pth', weights_only=True)
     net.load_state_dict(ckp['policy_model'])
-    test_worker = TestWorker(0, net, 0, save_image=True, greedy=True, test='maps_spec')
+    test_worker = TestWorker(0, net, 0, save_image=True, greedy=True, test=True)
     test_worker.run_episode()
