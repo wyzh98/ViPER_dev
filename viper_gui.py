@@ -11,13 +11,13 @@ import torch
 from test_worker import TestWorker
 from env import Env
 from agent import Agent
-from utils import *
+from utils.utils import *
 from model import PolicyNet
 from test_parameter import model_path, UNBOUND_SPEED
 
 
 class MapEditor:
-    def __init__(self, map_size=400, boundary_width=30, map_file_name='map.png', save_dir='maps_spec'):
+    def __init__(self, map_size=500, boundary_width=20, map_file_name='map.png', save_dir='maps_spec'):
         # Configuration Parameters
         self.map_size = map_size
         self.boundary_width = boundary_width
@@ -105,7 +105,7 @@ class MapEditor:
         start_x_row3 = (1 - total_width_row3) / 2
 
         ax_button_start = plt.axes([start_x_row3, row3_y, button_width, button_height])
-        self.button_start = Button(ax_button_start, 'Start')
+        self.button_start = Button(ax_button_start, 'Start Position')
         self.button_start.on_clicked(lambda _: self.toggle_drawing_mode('start'))
 
         ax_button_save = plt.axes([start_x_row3 + button_width + spacing_x, row3_y, button_width, button_height])
@@ -114,7 +114,7 @@ class MapEditor:
 
         # Slider
         ax_slider_thickness = plt.axes([0.2, 0.04, 0.6, 0.03])
-        self.slider_thickness = Slider(ax_slider_thickness, 'Thickness', 5, 120, valinit=30, valstep=1)
+        self.slider_thickness = Slider(ax_slider_thickness, 'Thickness', 5, 120, valinit=50, valstep=1)
 
         # Cursor Position Text
         self.cursor_pos = self.fig.text(0.02, 0.95, 'Cursor: (0, 0)', fontsize=10)
@@ -264,7 +264,7 @@ class MapEditor:
         self.robot_cells_user.append([x, y])
         self.fig.canvas.draw_idle()
 
-    def reset_map(self):
+    def reset_map(self, _=None):
         if self.reset_state:
             self.map_array.fill(self.free_space_value)
         else:
@@ -436,17 +436,17 @@ class InteractiveWorker(TestWorker):
         self.ax1.clear()
         self.ax2.clear()
 
-        self.ax2.imshow(self.env.robot_belief, cmap='gray', vmin=0, alpha=0)
+        self.ax2.imshow(self.env.robot_belief, cmap='gray', vmin=0, alpha=1)
         self.ax2.axis('off')
         color_list = ['r', 'b', 'g', 'y', 'm', 'c', 'k', 'w', (1, 0.5, 0.5), (0.2, 0.5, 0.7)]
         robot = self.robot_list[0]
         nodes = get_cell_position_from_coords(robot.local_node_coords, robot.safe_zone_info)
         self.ax2.scatter(nodes[:, 0], nodes[:, 1], c=robot.safe_utility, s=5, zorder=2)
 
-        for i in range(nodes.shape[0]):
-            for j in range(i + 1, nodes.shape[0]):
-                if robot.local_adjacent_matrix[i, j] == 0:
-                    self.ax2.plot([nodes[i, 0], nodes[j, 0]], [nodes[i, 1], nodes[j, 1]], c=(0.988, 0.557, 0.675), linewidth=1.5, zorder=1)
+        # for i in range(nodes.shape[0]):
+        #     for j in range(i + 1, nodes.shape[0]):
+        #         if robot.local_adjacent_matrix[i, j] == 0:
+        #             self.ax2.plot([nodes[i, 0], nodes[j, 0]], [nodes[i, 1], nodes[j, 1]], c=(0.988, 0.557, 0.675), linewidth=1.5, zorder=1)
 
         self.ax1.imshow(self.env.robot_belief, cmap='gray')
 

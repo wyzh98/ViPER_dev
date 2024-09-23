@@ -2,9 +2,9 @@ from skimage import io
 from skimage.measure import block_reduce
 from copy import deepcopy
 
-from sensor import exploration_sensor, coverage_sensor, decrease_safety_by_frontier
+from utils.sensor import exploration_sensor, coverage_sensor, decrease_safety_by_frontier
 from test_parameter import GROUP_START
-from utils import *
+from utils.utils import *
 
 
 class Env:

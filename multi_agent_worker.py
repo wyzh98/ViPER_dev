@@ -2,9 +2,9 @@ import matplotlib.pyplot as plt
 from copy import deepcopy
 from env import Env
 from agent import Agent
-from utils import *
 from model import PolicyNet
-from node_manager_quadtree import NodeManager
+from utils.utils import *
+from utils.node_manager_quadtree import NodeManager
 
 if not os.path.exists(gifs_path):
     os.makedirs(gifs_path)

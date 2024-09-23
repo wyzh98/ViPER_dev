@@ -1,6 +1,6 @@
-from utils import *
+import utils.quads as quads
+from utils.utils import *
 from parameter import *
-import quads  # https://github.com/toastdriven/quads
 
 
 class NodeManager:

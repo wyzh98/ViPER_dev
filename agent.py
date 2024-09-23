@@ -1,5 +1,5 @@
 import torch
-from utils import *
+from utils.utils import *
 from parameter import *
 
 

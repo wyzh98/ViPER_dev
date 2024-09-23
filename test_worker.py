@@ -2,8 +2,8 @@ import matplotlib.pyplot as plt
 import torch
 from env import Env
 from agent import Agent
-from utils import *
-from node_manager_quadtree import NodeManager
+from utils.node_manager_quadtree import NodeManager
+from utils.utils import *
 from test_parameter import *
 from copy import deepcopy
 

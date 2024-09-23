@@ -1,3 +1,6 @@
+"""
+https://github.com/toastdriven/quads
+"""
 import math
 
 
