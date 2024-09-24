@@ -37,7 +37,8 @@ class Agent:
         self.node_manager = node_manager
 
         # local graph
-        self.local_node_coords, self.explore_utility, self.safe_utility, self.uncovered_safe_utility, self.guidepost, self.signal, self.counter_signal, self.occupancy = None, None, None, None, None, None, None, None
+        (self.local_node_coords, self.explore_utility, self.safe_utility, self.uncovered_safe_utility, self.guidepost,
+         self.signal, self.counter_signal, self.occupancy) = None, None, None, None, None, None, None, None
         self.current_local_index, self.local_adjacent_matrix, self.local_neighbor_indices = None, None, None
 
         # ground truth graph (only for critic)
@@ -112,7 +113,7 @@ class Agent:
     def update_underlying_state(self):
         self.true_node_coords, self.true_adjacent_matrix = self.node_manager.get_underlying_node_graph(self.local_node_coords)
 
-    def get_local_observation(self, pad=True):
+    def get_observation(self, pad=True):
         local_node_coords = self.local_node_coords
         local_node_safe_utility = self.safe_utility.reshape(-1, 1)
         local_node_uncovered_safe_utility = self.uncovered_safe_utility.reshape(-1, 1)

@@ -26,14 +26,14 @@ def main():
     local_device = torch.device('cuda') if USE_GPU else torch.device('cpu')
 
     # initialize neural networks
-    global_policy_net = PolicyNet(LOCAL_NODE_INPUT_DIM, EMBEDDING_DIM).to(device)
-    global_q_net1 = QNet(LOCAL_NODE_INPUT_DIM, EMBEDDING_DIM).to(device)
-    global_q_net2 = QNet(LOCAL_NODE_INPUT_DIM, EMBEDDING_DIM).to(device)
+    global_policy_net = PolicyNet(NODE_INPUT_DIM, EMBEDDING_DIM).to(device)
+    global_q_net1 = QNet(NODE_INPUT_DIM, EMBEDDING_DIM).to(device)
+    global_q_net2 = QNet(NODE_INPUT_DIM, EMBEDDING_DIM).to(device)
     log_alpha = torch.FloatTensor([-2]).to(device)
     log_alpha.requires_grad = True
 
-    global_target_q_net1 = QNet(LOCAL_NODE_INPUT_DIM, EMBEDDING_DIM).to(device)
-    global_target_q_net2 = QNet(LOCAL_NODE_INPUT_DIM, EMBEDDING_DIM).to(device)
+    global_target_q_net1 = QNet(NODE_INPUT_DIM, EMBEDDING_DIM).to(device)
+    global_target_q_net2 = QNet(NODE_INPUT_DIM, EMBEDDING_DIM).to(device)
 
     # initialize optimizers
     global_policy_optimizer = optim.Adam(global_policy_net.parameters(), lr=LR)

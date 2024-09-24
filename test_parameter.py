@@ -11,7 +11,7 @@ UNBOUND_SPEED = False  # evader speed
 USE_GPU = False
 NUM_GPU = 0
 NUM_META_AGENT = 1  # the number of processes
-FOLDER_NAME = 'viper'
+FOLDER_NAME = 'viper3'
 model_path = f'model/{FOLDER_NAME}'
 gifs_path = f'results/gifs'
 

@@ -45,12 +45,12 @@ class Multi_agent_worker:
             dist_list = []
             next_node_index_list = []
             for robot in self.robot_list:
-                local_observation = robot.get_local_observation()
+                observation = robot.get_observation()
                 state = robot.get_state()
-                robot.save_observation(local_observation)
+                robot.save_observation(observation)
                 robot.save_state(state)
 
-                next_location, next_node_index, action_index = robot.select_next_waypoint(local_observation)
+                next_location, next_node_index, action_index = robot.select_next_waypoint(observation)
                 robot.save_action(action_index)
 
                 selected_locations.append(next_location)
@@ -105,9 +105,9 @@ class Multi_agent_worker:
 
         # save episode buffer
         for robot in self.robot_list:
-            local_observation = robot.get_local_observation()
+            observation = robot.get_observation()
             state = robot.get_state()
-            robot.save_next_observations(local_observation, next_node_index_list)
+            robot.save_next_observations(observation, next_node_index_list)
             robot.save_next_state(state)
 
             for i in range(len(self.episode_buffer)):
@@ -197,7 +197,7 @@ class Multi_agent_worker:
 
 if __name__ == '__main__':
     from parameter import *
-    policy_net = PolicyNet(LOCAL_NODE_INPUT_DIM, EMBEDDING_DIM)
+    policy_net = PolicyNet(NODE_INPUT_DIM, EMBEDDING_DIM)
     # ckp = torch.load('model/viper/checkpoint.pth', map_location='cpu')
     # policy_net.load_state_dict(ckp['policy_model'])
     worker = Multi_agent_worker(0, policy_net, 0, 'cpu', False)
