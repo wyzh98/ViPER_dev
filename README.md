@@ -2,13 +2,17 @@
 
 This repository hosts the code for [ViPER](https://openreview.net/pdf?id=EPujQZWemk), accepted for [CoRL 2024](https://www.corl.org/).
 
+<div>
+   <img src="utils/media/demo.gif" height="250"/>
+   <img src="utils/media/demo_large.gif" height="250"/>
+</div>
+
 ## Setup instructions
 
 Use conda and pip to setup environments:
 
 ```bash
-conda create -n viper python=3.11 scikit-image imageio tensorboard matplotlib pytorch pytor
-ch-cuda=11.8 -c pytorch -c nvidia -y
+conda create -n viper python=3.11 scikit-image imageio tensorboard matplotlib pytorch pytorch-cuda=11.8 -c pytorch -c nvidia -y
 conda activate viper
 pip install ray opencv-python wandb 
 ```
@@ -21,11 +25,11 @@ pip install ray opencv-python wandb
 bash ./utils/download.sh
 ```
 
-Set appropriate parameters in `test_parameter.py` and run `python test_driver.py` to evaluate.
+Set appropriate parameters in `test_parameter.py` and run `test_driver.py` to evaluate.
 
 ### Interactive demo
 
-You can also create your own map by running `python viper_demo.py`, which opens a canvas for you to draw on.
+You can also create your own map by running `viper_demo.py`, which opens a canvas for you to draw on.
 
 - Use _Obstacle_ and _Free Space_ brushes to draw your map. Adjust the brush size with the thickness slider.
 - Click _Reset_ to clear the canvas, setting it entirely to obstacles or free space.
@@ -40,7 +44,7 @@ Alternatively, you can save the map you created.
 ## Training
 
 Make sure you have downloaded the map dataset.
-Set appropriate parameters in `parameter.py` and run `python driver.py` to train the model.
+Set appropriate parameters in `parameter.py` and run `driver.py` to train the model.
 
 
 ## Citation
