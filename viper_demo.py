@@ -13,7 +13,7 @@ from env import Env
 from agent import Agent
 from utils.utils import *
 from model import PolicyNet
-from test_parameter import model_path, UNBOUND_SPEED
+from test_parameter import model_path, UNBOUND_SPEED, MAX_EPISODE_STEP
 
 
 class MapEditor:
@@ -253,10 +253,21 @@ class MapEditor:
 
     def place_agent(self, event):
         if len(self.robot_cells_user) >= 10:
-            print("Maximum of 10 agents already placed.")
+            print("Warning: Maximum of 10 agents already placed.")
             return
 
         x, y = int(event.xdata), int(event.ydata)
+
+        if self.map_array[x, y] != self.free_space_value:
+            print(f"Warning: Cell ({x}, {y}) is not free space. Cannot place an agent here.")
+            return
+
+        for robot_cell in self.robot_cells_user:
+            distance = ((x - robot_cell[0]) ** 2 + (y - robot_cell[1]) ** 2) ** 0.5
+            if distance < 20:
+                print(f"Warning: Cell ({x}, {y}) is too close to an existing agent at ({robot_cell[0]}, {robot_cell[1]}).")
+                return
+
         color = self.agent_colors[len(self.robot_cells_user) % len(self.agent_colors)]
         agent_circle = plt.Circle((x, y), 10, color=color, fill=True, alpha=0.7)
         self.ax.add_patch(agent_circle)
@@ -290,7 +301,9 @@ class MapEditor:
         map_data = {'map': self.map_array, 'loc': self.robot_cells_user}
         with open(save_path, 'wb') as file:
             pickle.dump(map_data, file)
-        assert self.robot_cells_user.__len__() > 0, "Please place at least one agent."
+        if self.robot_cells_user.__len__() == 0:
+            print("Please place at least one agent.")
+            return
         self.play_event = True
         plt.close()
 
@@ -421,10 +434,12 @@ class InteractiveWorker(TestWorker):
             if self.save_image:
                 self.plot_local_env(i)
 
-            if max_travel_dist >= 1000:
+            if max_travel_dist >= 1000 or i == MAX_EPISODE_STEP - 1:
+                print(f"Over 1000 steps or reached maximum steps.")
                 break
 
             if done:
+                print(f"Environment cleared in {i + 1} steps.")
                 break
 
         if self.save_image:
@@ -448,7 +463,7 @@ class InteractiveWorker(TestWorker):
         #         if robot.local_adjacent_matrix[i, j] == 0:
         #             self.ax2.plot([nodes[i, 0], nodes[j, 0]], [nodes[i, 1], nodes[j, 1]], c=(0.988, 0.557, 0.675), linewidth=1.5, zorder=1)
 
-        self.ax1.imshow(self.env.robot_belief, cmap='gray')
+        self.ax1.imshow(self.env.robot_belief, cmap='gray', vmin=0)
 
         self.env.classify_safe_frontier(self.env.robot_locations)
         covered_safe_frontier_cells = get_cell_position_from_coords(self.env.covered_safe_frontiers, self.env.safe_info).reshape(-1, 2)

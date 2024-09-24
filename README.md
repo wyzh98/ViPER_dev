@@ -13,36 +13,35 @@ conda activate viper
 pip install ray opencv-python wandb 
 ```
 
-## Training
-
-Download our map dataset (4000 maps) for training. It will be extracted to `ViPER/maps_train/`:
-
-```bash
-wget -O maps_train.zip "https://www.dropbox.com/scl/fi/b0hosxxfnzv7j0tcoiwq1/maps_train.zip?rlkey=au844wb4dvvo2bbq32x9p2p8x&dl=1"
-unzip maps_train.zip && rm maps_train.zip
-```
-Set appropriate parameters in `parameter.py` and run `python driver.py` to train the model.
-
 ## Evaluation
 
-Download pretrained model checkpoint.
+### Download pretrained model and dataset
+
 ```bash
-wget -O ""
+bash ./utils/download.sh
 ```
 
-Download our map test dataset (100 maps) for testing. It will be extracted to `ViPER/maps_test/`.
-```bash
-wget -O maps_test.zip "https://www.dropbox.com/scl/fi/8ktuwxxzw4iz4x4hht3o7/maps_test.zip?rlkey=ahcoqn6932z1sepq01kjfqtya&dl=1"
-unzip maps_test.zip && rm maps_test.zip
-```
-### Draw Your Map
-You can also create your own map by running `python map_creator.py`, which will open a canvas.
+Set appropriate parameters in `test_parameter.py` and run `python test_driver.py` to evaluate.
+
+### Interactive demo
+
+You can also create your own map by running `python viper_demo.py`, which opens a canvas for you to draw on.
+
 - Use _Obstacle_ and _Free Space_ brushes to draw your map. Adjust the brush size with the thickness slider.
-- Click _Start_ to place the starting position of agents.
 - Click _Reset_ to clear the canvas, setting it entirely to obstacles or free space.
-- Click _Save Map_ before closing the canvas; your map will be saved as `maps_spec/map.png`.
+- Click _Place Agents_ to place multiple agents in the **free space**.
+- Click _Play_ to observe how ViPER agents plan their path.
 
-Test your map by running `python test_worker.py`. You can visualize the solution in `results/gifs/`.
+Alternatively, you can save the map you created.
+
+- Click _Start Position_ to place the starting position of agents.
+- Click _Save Map_ before closing the canvas. Your map will be saved as `maps_spec/map.png`. 
+
+## Training
+
+Make sure you have downloaded the map dataset.
+Set appropriate parameters in `parameter.py` and run `python driver.py` to train the model.
+
 
 ## Citation
 
@@ -56,6 +55,7 @@ If you find our work useful, please consider citing our paper:
   year = {2024}
 }
 ```
+
 Authors:
 [Yizhuo Wang](https://www.yizhuo-wang.com/),
 [Yuhong Cao](https://www.yuhongcao.online/),
