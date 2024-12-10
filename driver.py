@@ -1,5 +1,3 @@
-import copy
-
 import torch
 import torch.optim as optim
 import torch.nn as nn
@@ -18,10 +16,8 @@ ray.init()
 print("Welcome to RL Adversarial Search!")
 
 writer = SummaryWriter(train_path)
-if not os.path.exists(model_path):
-    os.makedirs(model_path)
-if not os.path.exists(gifs_path):
-    os.makedirs(gifs_path)
+os.makedirs(model_path, exist_ok=True)
+os.makedirs(gifs_path, exist_ok=True)
 
 
 def main():
@@ -30,14 +26,14 @@ def main():
     local_device = torch.device('cuda') if USE_GPU else torch.device('cpu')
 
     # initialize neural networks
-    global_policy_net = PolicyNet(LOCAL_NODE_INPUT_DIM, EMBEDDING_DIM).to(device)
-    global_q_net1 = QNet(LOCAL_NODE_INPUT_DIM, EMBEDDING_DIM).to(device)
-    global_q_net2 = QNet(LOCAL_NODE_INPUT_DIM, EMBEDDING_DIM).to(device)
+    global_policy_net = PolicyNet(NODE_INPUT_DIM, EMBEDDING_DIM).to(device)
+    global_q_net1 = QNet(NODE_INPUT_DIM, EMBEDDING_DIM).to(device)
+    global_q_net2 = QNet(NODE_INPUT_DIM, EMBEDDING_DIM).to(device)
     log_alpha = torch.FloatTensor([-2]).to(device)
     log_alpha.requires_grad = True
 
-    global_target_q_net1 = QNet(LOCAL_NODE_INPUT_DIM, EMBEDDING_DIM).to(device)
-    global_target_q_net2 = QNet(LOCAL_NODE_INPUT_DIM, EMBEDDING_DIM).to(device)
+    global_target_q_net1 = QNet(NODE_INPUT_DIM, EMBEDDING_DIM).to(device)
+    global_target_q_net2 = QNet(NODE_INPUT_DIM, EMBEDDING_DIM).to(device)
 
     # initialize optimizers
     global_policy_optimizer = optim.Adam(global_policy_net.parameters(), lr=LR)
@@ -56,7 +52,6 @@ def main():
         vars(parameter).__delitem__('__builtins__')
         wandb.init(project='MASafezone', name=FOLDER_NAME, entity='ezo', config=vars(parameter), resume='allow',
                    id=None, notes=None)
-        # wandb.watch([global_policy_net, global_q_net1], log='all', log_freq=1000, log_graph=False)
 
     # load model and optimizer trained before
     if LOAD_MODEL:
@@ -248,7 +243,6 @@ def main():
                     log_alpha_optimizer.step()
 
                     target_q_update_counter += 1
-                    # print("target q update counter", target_q_update_counter % 1024)
 
                 # data record to be written in tensorboard
                 perf_data = []

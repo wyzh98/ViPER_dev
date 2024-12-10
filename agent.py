@@ -1,5 +1,5 @@
 import torch
-from utils import *
+from utils.utils import *
 from parameter import *
 
 
@@ -22,22 +22,23 @@ class Agent:
         self.local_map_size = LOCAL_MAP_SIZE  # meter
         self.extended_local_map_size = EXTENDED_LOCAL_MAP_SIZE
 
-        # local safe and extended local safe
+        # safe and extended safe
         self.local_safe_zone_info = None
         self.extended_local_safe_zone_info = None
         self.extended_local_counter_safe_zone_info = None
         self.local_map_info = None
         self.extended_local_map_info = None
 
-        # local frontiers
+        # frontiers
         self.explore_frontier = None
         self.safe_frontier = None
 
-        # local node managers
+        # node managers
         self.node_manager = node_manager
 
         # local graph
-        self.local_node_coords, self.explore_utility, self.safe_utility, self.uncovered_safe_utility, self.guidepost, self.signal, self.counter_signal, self.occupancy = None, None, None, None, None, None, None, None
+        (self.local_node_coords, self.explore_utility, self.safe_utility, self.uncovered_safe_utility, self.guidepost,
+         self.signal, self.counter_signal, self.occupancy) = None, None, None, None, None, None, None, None
         self.current_local_index, self.local_adjacent_matrix, self.local_neighbor_indices = None, None, None
 
         # ground truth graph (only for critic)
@@ -112,7 +113,7 @@ class Agent:
     def update_underlying_state(self):
         self.true_node_coords, self.true_adjacent_matrix = self.node_manager.get_underlying_node_graph(self.local_node_coords)
 
-    def get_local_observation(self, pad=True):
+    def get_observation(self, pad=True):
         local_node_coords = self.local_node_coords
         local_node_safe_utility = self.safe_utility.reshape(-1, 1)
         local_node_uncovered_safe_utility = self.uncovered_safe_utility.reshape(-1, 1)
@@ -155,8 +156,7 @@ class Agent:
             padding = torch.nn.ConstantPad2d((0, LOCAL_NODE_PADDING_SIZE - n_local_node, 0, LOCAL_NODE_PADDING_SIZE - n_local_node), 1)
             local_edge_mask = padding(local_edge_mask)
 
-        # current_in_edge = np.argwhere(current_local_edge == self.current_local_index)[0][0]
-        current_local_edge = torch.tensor(current_local_edge).unsqueeze(0)
+        current_local_edge = torch.tensor(current_local_edge).unsqueeze(0).to(self.device)
         k_size = current_local_edge.size()[-1]
         if pad:
             padding = torch.nn.ConstantPad1d((0, LOCAL_K_SIZE - k_size), 0)
@@ -164,7 +164,8 @@ class Agent:
         current_local_edge = current_local_edge.unsqueeze(-1)
 
         local_edge_padding_mask = torch.zeros((1, 1, k_size), dtype=torch.int16).to(self.device)
-        # local_edge_padding_mask[0, 0, current_in_edge] = 1
+        # current_in_edge = np.argwhere(current_local_edge == self.current_local_index)[0][0]
+        # local_edge_padding_mask[0, 0, current_in_edge] = 1  # do not allow stay at the same node
         if pad:
             padding = torch.nn.ConstantPad1d((0, LOCAL_K_SIZE - k_size), 1)
             local_edge_padding_mask = padding(local_edge_padding_mask)

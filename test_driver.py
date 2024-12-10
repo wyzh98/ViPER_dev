@@ -12,10 +12,7 @@ def run_test():
     device = torch.device('cuda') if USE_GPU else torch.device('cpu')
     global_network = PolicyNet(INPUT_DIM, EMBEDDING_DIM).to(device)
 
-    if device == 'cuda':
-        checkpoint = torch.load(f'{model_path}/checkpoint.pth')
-    else:
-        checkpoint = torch.load(f'{model_path}/checkpoint.pth', map_location=torch.device('cpu'))
+    checkpoint = torch.load(f'{model_path}/checkpoint.pth', weights_only=True, map_location=device)
 
     global_network.load_state_dict(checkpoint['policy_model'])
 
@@ -58,14 +55,15 @@ def run_test():
                     curr_test += 1
 
         print('=====================================')
-        print('|#Test:', FOLDER_NAME)
-        print('|#Number of agents:', TEST_N_AGENTS)
-        print('|#Total test:', NUM_TEST)
-        print('|#Average max length:', np.array(max_dist_history).mean())
-        print('|#Std max length:', np.array(max_dist_history).std())
-        print('|#Average explored rate:', np.array(explored_rate_history).mean())
-        print('|#Average safe rate:', np.array(safe_rate_history).mean())
-        print('|#Average success rate:', np.array(success_rate_history).mean())
+        print('| Test:', FOLDER_NAME)
+        print('| Total test:', NUM_TEST)
+        print('| Number of agents:', TEST_N_AGENTS)
+        print('| Unbounded evader speed:', UNBOUND_SPEED)
+        print('| Average max length:', np.array(max_dist_history).mean())
+        print('| Std max length:', np.array(max_dist_history).std())
+        print('| Average explored rate:', np.array(explored_rate_history).mean())
+        print('| Average cleared rate:', np.array(safe_rate_history).mean())
+        print('| Average success rate:', np.array(success_rate_history).mean())
 
         if SAVE_CSV:
             idx = np.array(all_length_history).argsort()
@@ -98,7 +96,8 @@ class Runner(object):
         self.local_network.load_state_dict(weights)
 
     def do_job(self, episode_number):
-        worker = TestWorker(self.meta_agent_id, self.local_network, episode_number, device=self.device, save_image=SAVE_GIFS, greedy=True)
+        worker = TestWorker(self.meta_agent_id, self.local_network, episode_number, device=self.device,
+                            save_image=SAVE_GIFS, greedy=True, test=True)
         worker.run_episode()
 
         perf_metrics = worker.perf_metrics
@@ -106,7 +105,7 @@ class Runner(object):
 
     def job(self, weights, episode_number):
         print("starting episode {} on metaAgent {}".format(episode_number, self.meta_agent_id))
-        # set the local weights to the global weight values from the master network
+
         self.set_weights(weights)
 
         metrics = self.do_job(episode_number)
@@ -121,5 +120,4 @@ class Runner(object):
 
 if __name__ == '__main__':
     ray.init()
-    for i in range(NUM_RUN):
-        run_test()
+    run_test()

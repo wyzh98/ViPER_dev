@@ -2,17 +2,16 @@ import matplotlib.pyplot as plt
 import torch
 from env import Env
 from agent import Agent
-from utils import *
-from node_manager_quadtree import NodeManager
+from utils.node_manager_quadtree import NodeManager
+from utils.utils import *
 from test_parameter import *
 from copy import deepcopy
 
-if not os.path.exists(gifs_path):
-    os.makedirs(gifs_path)
+os.makedirs(gifs_path, exist_ok=True)
 
 
 class TestWorker:
-    def __init__(self, meta_agent_id, policy_net, global_step, device='cpu', save_image=False, greedy=True):
+    def __init__(self, meta_agent_id, policy_net, global_step, device='cpu', save_image=False, greedy=True, test=True):
         self.meta_agent_id = meta_agent_id
         self.global_step = global_step
         self.save_image = save_image
@@ -21,7 +20,7 @@ class TestWorker:
         np.random.seed(123)
         torch.manual_seed(123)
 
-        self.env = Env(global_step, n_agent=TEST_N_AGENTS, explore=EXPLORATION, plot=self.save_image, test=True)
+        self.env = Env(global_step, n_agent=TEST_N_AGENTS, explore=EXPLORATION, plot=self.save_image, test=test)
         self.node_manager = NodeManager(self.env.ground_truth_coords, self.env.ground_truth_info, explore=EXPLORATION, plot=self.save_image)
 
         self.robot_list = [Agent(i, policy_net, self.node_manager, self.device, self.save_image) for i in range(self.env.n_agent)]
@@ -50,7 +49,7 @@ class TestWorker:
             dist_list = []
 
             for robot in self.robot_list:
-                local_observation = robot.get_local_observation(pad=False)
+                local_observation = robot.get_observation(pad=False)
                 next_location, _, _ = robot.select_next_waypoint(local_observation, self.greedy)
                 selected_locations.append(next_location)
                 dist_list.append(np.linalg.norm(next_location - robot.location))
@@ -129,7 +128,7 @@ class TestWorker:
         if self.save_image:
             make_gif(gifs_path, self.global_step, self.env.frame_files, self.env.explored_rate)
 
-    def plot_local_env(self, step, planned_paths=None):
+    def plot_local_env(self, step):
         plt.switch_backend('agg')
         plt.figure(figsize=(9, 4))
         plt.subplot(1, 2, 2)
@@ -177,7 +176,6 @@ class TestWorker:
                                                                                                 self.env.safe_rate,
                                                                                                 max([robot.travel_dist for robot in self.robot_list])))
         plt.tight_layout()
-        # plt.show()
         plt.savefig('{}/{}_{}_samples.png'.format(gifs_path, self.global_step, step))
         plt.close()
         frame = '{}/{}_{}_samples.png'.format(gifs_path, self.global_step, step)
@@ -187,7 +185,7 @@ class TestWorker:
 if __name__ == '__main__':
     from model import PolicyNet
     net = PolicyNet(8, 128)
-    ckp = torch.load(f'{model_path}/checkpoint.pth', map_location=torch.device('cpu'))
+    ckp = torch.load(f'{model_path}/checkpoint.pth', weights_only=True)
     net.load_state_dict(ckp['policy_model'])
-    test_worker = TestWorker(0, net, 0, save_image=True, greedy=True)
+    test_worker = TestWorker(0, net, 0, save_image=True, greedy=True, test=True)
     test_worker.run_episode()
