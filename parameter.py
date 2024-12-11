@@ -6,7 +6,7 @@ SUMMARY_WINDOW = 2
 LOAD_MODEL = False  # load trained model and resume training
 SAVE_IMG_GAP = 1000
 
-N_AGENTS = 4
+N_AGENTS = 3
 
 EXPLORATION = True  # True: unknown map, False: known map
 

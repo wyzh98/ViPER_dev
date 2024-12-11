@@ -5,14 +5,13 @@ from agent import Agent
 from model import PolicyNet
 from utils.utils import *
 from utils.node_manager_quadtree import NodeManager
-from utils.buffer import ReplayBuffer
 
 if not os.path.exists(gifs_path):
     os.makedirs(gifs_path)
 
 
 class Multi_agent_worker:
-    def __init__(self, meta_agent_id, policy_net, replay_buffer, global_step, device='cpu', save_image=False):
+    def __init__(self, meta_agent_id, policy_net, global_step, device='cpu', save_image=False):
         self.meta_agent_id = meta_agent_id
         self.global_step = global_step
         self.save_image = save_image
@@ -22,8 +21,9 @@ class Multi_agent_worker:
         self.n_agent = N_AGENTS
         self.node_manager = NodeManager(self.env.ground_truth_coords, self.env.ground_truth_info, explore=EXPLORATION, plot=self.save_image)
 
-        self.replay_buffer = replay_buffer
-        self.robot_list = [Agent(i, policy_net, self.node_manager, self.replay_buffer, self.device, self.save_image) for i in range(self.n_agent)]
+        self.robot_list = [Agent(i, policy_net, self.node_manager, self.device, self.save_image) for i in range(self.n_agent)]
+
+        self.episode_buffer = dict()
         self.perf_metrics = dict()
 
     def run_episode(self):
@@ -107,6 +107,11 @@ class Multi_agent_worker:
             state = robot.get_state()
             robot.save_next_observations(observation, next_node_index_list)
             robot.save_next_state(state)
+
+            for k in robot.episode_buffer:
+                if k not in self.episode_buffer:
+                    self.episode_buffer[k] = []
+                self.episode_buffer[k] += robot.episode_buffer[k]
 
         # save gif
         if self.save_image:
@@ -194,8 +199,7 @@ class Multi_agent_worker:
 if __name__ == '__main__':
     from parameter import *
     policynet = PolicyNet(NODE_INPUT_DIM, EMBEDDING_DIM)
-    buffer = ReplayBuffer(REPLAY_SIZE, BATCH_SIZE)
     # ckp = torch.load('model/viper/checkpoint.pth', map_location='cpu')
     # policynet.load_state_dict(ckp['policy_model'])
-    worker = Multi_agent_worker(0, policynet, buffer, 0, 'cpu', False)
+    worker = Multi_agent_worker(0, policynet, 0, 'cpu', False)
     worker.run_episode()

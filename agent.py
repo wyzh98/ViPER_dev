@@ -1,11 +1,10 @@
 import torch
 from utils.utils import *
 from parameter import *
-from collections import deque
 
 
 class Agent:
-    def __init__(self, id, policy_net, node_manager, replay_buffer, device='cpu', plot=False):
+    def __init__(self, id, policy_net, node_manager, device='cpu', plot=False):
         self.id = id
         self.device = device
         self.plot = plot
@@ -30,7 +29,6 @@ class Agent:
 
         # managers
         self.node_manager = node_manager
-        self.replay_buffer = replay_buffer
 
         # local graph
         (self.local_node_coords, self.explore_utility, self.safe_utility, self.uncovered_safe_utility, self.guidepost,
@@ -41,6 +39,9 @@ class Agent:
         self.true_node_coords, self.true_adjacent_matrix = None, None
 
         self.travel_dist = 0
+
+        self.episode_buffer = {}
+        self.add = lambda d, k, v: d.setdefault(k, []).extend(v)
 
         if self.plot:
             self.trajectory_x = []
@@ -299,70 +300,58 @@ class Agent:
 
     def save_observation(self, local_observation):
         local_node_inputs, local_node_padding_mask, local_edge_mask, current_local_index, current_local_edge, local_edge_padding_mask = local_observation
-        self.replay_buffer.add({
-            'node_inputs': local_node_inputs,
-            'node_padding_mask': local_node_padding_mask.bool(),
-            'edge_mask': local_edge_mask.bool(),
-            'current_index': current_local_index,
-            'current_edge': current_local_edge,
-            'edge_padding_mask': local_edge_padding_mask.bool()
-        })
+        self.add(self.episode_buffer, 'node_inputs', local_node_inputs)
+        self.add(self.episode_buffer, 'node_padding_mask', local_node_padding_mask.bool())
+        self.add(self.episode_buffer, 'edge_mask', local_edge_mask.bool())
+        self.add(self.episode_buffer, 'current_index', current_local_index)
+        self.add(self.episode_buffer, 'current_edge', current_local_edge)
+        self.add(self.episode_buffer, 'edge_padding_mask', local_edge_padding_mask.bool())
 
     def save_action(self, action_index):
-        self.replay_buffer.add({'action': action_index.reshape(1, 1, 1).to(self.device)})
+        self.add(self.episode_buffer, 'action', action_index.reshape(1, 1, 1).to(self.device))
 
     def save_reward(self, reward):
-        self.replay_buffer.add({'reward': torch.FloatTensor([reward]).reshape(1, 1, 1).to(self.device)})
+        self.add(self.episode_buffer, 'reward', torch.FloatTensor([reward]).reshape(1, 1, 1).to(self.device))
 
     def save_done(self, done):
-        self.replay_buffer.add({'done': torch.tensor([int(done)]).reshape(1, 1, 1).to(self.device)})
+        self.add(self.episode_buffer, 'done', torch.tensor([int(done)]).reshape(1, 1, 1).to(self.device))
 
     def save_all_indices(self, all_agent_curr_indices):
-        self.replay_buffer.add({'all_agent_indices': torch.tensor(all_agent_curr_indices).reshape(1, -1, 1).to(self.device)})
+        self.add(self.episode_buffer, 'all_agent_indices', torch.tensor(all_agent_curr_indices).reshape(1, -1, 1).to(self.device))
 
     def save_next_observations(self, local_observation, next_node_index_list):
-        next_data = {
-            'next_node_inputs': copy.deepcopy(list(self.replay_buffer.buffers['node_inputs'])[1:]),
-            'next_node_padding_mask': copy.deepcopy(list(self.replay_buffer.buffers['node_padding_mask'])[1:]),
-            'next_edge_mask': copy.deepcopy(list(self.replay_buffer.buffers['edge_mask'])[1:]),
-            'next_current_index': copy.deepcopy(list(self.replay_buffer.buffers['current_index'])[1:]),
-            'next_current_edge': copy.deepcopy(list(self.replay_buffer.buffers['current_edge'])[1:]),
-            'next_edge_padding_mask': copy.deepcopy(list(self.replay_buffer.buffers['edge_padding_mask'])[1:]),
-            'all_agent_next_indices': copy.deepcopy(list(self.replay_buffer.buffers['all_agent_indices'])[1:])
-        }
+        self.episode_buffer['next_node_inputs'] = copy.deepcopy(self.episode_buffer['node_inputs'])[1:]
+        self.episode_buffer['next_node_padding_mask'] = copy.deepcopy(self.episode_buffer['node_padding_mask'])[1:]
+        self.episode_buffer['next_edge_mask'] = copy.deepcopy(self.episode_buffer['edge_mask'])[1:]
+        self.episode_buffer['next_current_index'] = copy.deepcopy(self.episode_buffer['current_index'])[1:]
+        self.episode_buffer['next_current_edge'] = copy.deepcopy(self.episode_buffer['current_edge'])[1:]
+        self.episode_buffer['next_edge_padding_mask'] = copy.deepcopy(self.episode_buffer['edge_padding_mask'])[1:]
+        self.episode_buffer['all_agent_next_indices'] = copy.deepcopy(self.episode_buffer['all_agent_indices'])[1:]
 
         local_node_inputs, local_node_padding_mask, local_edge_mask, current_local_index, current_local_edge, local_edge_padding_mask = local_observation
-        next_data['next_node_inputs'] += local_node_inputs
-        next_data['next_node_padding_mask'] += local_node_padding_mask.bool()
-        next_data['next_edge_mask'] += local_edge_mask.bool()
-        next_data['next_current_index'] += current_local_index
-        next_data['next_current_edge'] += current_local_edge
-        next_data['next_edge_padding_mask'] += local_edge_padding_mask.bool()
-        next_data['all_agent_next_indices'] += torch.tensor(next_node_index_list).reshape(1, -1, 1).to(self.device)
-        next_data['next_all_agent_next_indices'] = copy.deepcopy(next_data['all_agent_next_indices'])[1:]
-        next_data['next_all_agent_next_indices'] += copy.deepcopy(next_data['all_agent_next_indices'])[-1:]
-        next_data = {key: deque(value) for key, value in next_data.items()}
-        self.replay_buffer.add(next_data)
+        self.episode_buffer['next_node_inputs'] += local_node_inputs
+        self.episode_buffer['next_node_padding_mask'] += local_node_padding_mask.bool()
+        self.episode_buffer['next_edge_mask'] += local_edge_mask.bool()
+        self.episode_buffer['next_current_index'] += current_local_index
+        self.episode_buffer['next_current_edge'] += current_local_edge
+        self.episode_buffer['next_edge_padding_mask'] += local_edge_padding_mask.bool()
+        self.episode_buffer['all_agent_next_indices'] += torch.tensor(next_node_index_list).reshape(1, -1, 1).to(self.device)
+        self.episode_buffer['next_all_agent_next_indices'] = copy.deepcopy(self.episode_buffer['all_agent_next_indices'])[1:]
+        self.episode_buffer['next_all_agent_next_indices'] += copy.deepcopy(self.episode_buffer['all_agent_next_indices'])[-1:]
 
     def save_state(self, state):
         global_node_inputs, global_node_padding_mask, global_edge_mask = state
-        self.replay_buffer.add({
-            'state_node_inputs': global_node_inputs,
-            'state_node_padding_mask': global_node_padding_mask.bool(),
-            'state_edge_mask': global_edge_mask.bool()
-        })
+        self.add(self.episode_buffer, 'state_node_inputs', global_node_inputs)
+        self.add(self.episode_buffer, 'state_node_padding_mask', global_node_padding_mask.bool())
+        self.add(self.episode_buffer, 'state_edge_mask', global_edge_mask.bool())
 
     def save_next_state(self, state):
-        next_data = {
-            'next_state_node_inputs': copy.deepcopy(list(self.replay_buffer.buffers['state_node_inputs'])[1:]),
-            'next_state_node_padding_mask': copy.deepcopy(list(self.replay_buffer.buffers['state_node_padding_mask'])[1:]),
-            'next_state_edge_mask': copy.deepcopy(list(self.replay_buffer.buffers['state_edge_mask'])[1:])
-        }
+        self.episode_buffer['next_state_node_inputs'] = copy.deepcopy(self.episode_buffer['state_node_inputs'])[1:]
+        self.episode_buffer['next_state_node_padding_mask'] = copy.deepcopy(self.episode_buffer['state_node_padding_mask'])[1:]
+        self.episode_buffer['next_state_edge_mask'] = copy.deepcopy(self.episode_buffer['state_edge_mask'])[1:]
 
         global_node_inputs, global_node_padding_mask, global_edge_mask = state
-        next_data['next_state_node_inputs'] += global_node_inputs
-        next_data['next_state_node_padding_mask'] += global_node_padding_mask.bool()
-        next_data['next_state_edge_mask'] += global_edge_mask.bool()
-        next_data = {key: deque(value) for key, value in next_data.items()}
-        self.replay_buffer.add(next_data)
+        self.episode_buffer['next_state_node_inputs'] += global_node_inputs
+        self.episode_buffer['next_state_node_padding_mask'] += global_node_padding_mask.bool()
+        self.episode_buffer['next_state_edge_mask'] += global_edge_mask.bool()
 

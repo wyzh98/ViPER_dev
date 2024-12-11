@@ -5,13 +5,12 @@ from torch.utils.tensorboard import SummaryWriter
 import ray
 import os
 import numpy as np
+import random
 import wandb
 
 from model import PolicyNet, QNet
 from runner import RLRunner
 from parameter import *
-from utils.buffer import ReplayBuffer
-
 
 ray.init()
 print("Welcome to RL Adversarial Search!")
@@ -51,7 +50,7 @@ def main():
     if USE_WANDB:
         import parameter
         vars(parameter).__delitem__('__builtins__')
-        wandb.init(project='MASafezone', name=FOLDER_NAME, entity='ezo', config=vars(parameter), resume='allow',
+        wandb.init(project='ViPER', name=FOLDER_NAME, entity='ezo', config=vars(parameter), resume='allow',
                    id=None, notes=None)
 
     # load model and optimizer trained before
@@ -80,8 +79,7 @@ def main():
     global_target_q_net2.eval()
 
     # launch meta agents
-    buffer = ReplayBuffer(REPLAY_SIZE, BATCH_SIZE)
-    meta_agents = [RLRunner.remote(i, buffer) for i in range(NUM_META_AGENT)]
+    meta_agents = [RLRunner.remote(i) for i in range(NUM_META_AGENT)]
 
     # get global networks weights
     weights_set = []
@@ -106,6 +104,8 @@ def main():
         job_list.append(meta_agent.job.remote(weights_set, curr_episode))
 
     # initialize metric collector
+    experience_buffer = {}
+
     metric_name = ['travel_dist', 'max_travel_dist', 'success_rate', 'explored_rate', 'safe_rate', 'safe_increase_rate']
     training_data = []
     perf_metrics = {}
@@ -123,7 +123,10 @@ def main():
             # save experience and metric
             for job in done_jobs:
                 job_results, metrics, info = job
-                buffer = job_results
+                for k, v in job_results.items():
+                    if k not in experience_buffer:
+                        experience_buffer[k] = []
+                    experience_buffer[k] += v
                 for n in metric_name:
                     perf_metrics[n].append(metrics[n])
 
@@ -132,36 +135,49 @@ def main():
             job_list.append(meta_agents[info['id']].job.remote(weights_set, curr_episode))
 
             # start training
-            print('Buffer size:', len(buffer))
-            if curr_episode % 1 == 0 and len(buffer) >= MINIMUM_BUFFER_SIZE:
+            if curr_episode % 1 == 0 and len(next(iter(experience_buffer.values()))) >= MINIMUM_BUFFER_SIZE:
                 print("training")
+
+                # keep the replay buffer size
+                for k in experience_buffer:
+                    if len(experience_buffer[k]) >= REPLAY_SIZE:
+                        experience_buffer[k] = experience_buffer[k][-REPLAY_SIZE:]
+
+                indices = range(len(next(iter(experience_buffer.values()))))
+
                 # training for n times each step
                 for j in range(4):
-                    rollouts = buffer.sample(device)
-                    node_inputs = rollouts['node_inputs']
-                    node_padding_mask = rollouts['node_padding_mask']
-                    edge_mask = rollouts['edge_mask']
-                    current_index = rollouts['current_index']
-                    current_edge = rollouts['current_edge']
-                    edge_padding_mask = rollouts['edge_padding_mask']
-                    action = rollouts['action']
-                    reward = rollouts['reward']
-                    done = rollouts['done']
-                    all_agent_indices = rollouts['all_agent_indices']
-                    next_node_inputs = rollouts['next_node_inputs']
-                    next_node_padding_mask = rollouts['next_node_padding_mask']
-                    next_edge_mask = rollouts['next_edge_mask']
-                    next_current_index = rollouts['next_current_index']
-                    next_current_edge = rollouts['next_current_edge']
-                    next_edge_padding_mask = rollouts['next_edge_padding_mask']
-                    all_agent_next_indices = rollouts['all_agent_next_indices']
-                    next_all_agent_next_indices = rollouts['next_all_agent_next_indices']
-                    state_node_inputs = rollouts['state_node_inputs']
-                    state_node_padding_mask = rollouts['state_node_padding_mask']
-                    state_edge_mask = rollouts['state_edge_mask']
-                    next_state_node_inputs = rollouts['next_state_node_inputs']
-                    next_state_node_padding_mask = rollouts['next_state_node_padding_mask']
-                    next_state_edge_mask = rollouts['next_state_edge_mask']
+                    # randomly sample a batch data
+                    sample_indices = random.sample(indices, BATCH_SIZE)
+                    rollouts = {k: [experience_buffer[k][index] for index in sample_indices]
+                                for k in experience_buffer}
+
+                    # stack batch data to tensors
+                    prep = lambda x: torch.stack(x).to(device)
+                    node_inputs = prep(rollouts['node_inputs'])
+                    node_padding_mask = prep(rollouts['node_padding_mask'])
+                    edge_mask = prep(rollouts['edge_mask'])
+                    current_index = prep(rollouts['current_index'])
+                    current_edge = prep(rollouts['current_edge'])
+                    edge_padding_mask = prep(rollouts['edge_padding_mask'])
+                    action = prep(rollouts['action'])
+                    reward = prep(rollouts['reward'])
+                    done = prep(rollouts['done'])
+                    all_agent_indices = prep(rollouts['all_agent_indices'])
+                    next_node_inputs = prep(rollouts['next_node_inputs'])
+                    next_node_padding_mask = prep(rollouts['next_node_padding_mask'])
+                    next_edge_mask = prep(rollouts['next_edge_mask'])
+                    next_current_index = prep(rollouts['next_current_index'])
+                    next_current_edge = prep(rollouts['next_current_edge'])
+                    next_edge_padding_mask = prep(rollouts['next_edge_padding_mask'])
+                    all_agent_next_indices = prep(rollouts['all_agent_next_indices'])
+                    next_all_agent_next_indices = prep(rollouts['next_all_agent_next_indices'])
+                    state_node_inputs = prep(rollouts['state_node_inputs'])
+                    state_node_padding_mask = prep(rollouts['state_node_padding_mask'])
+                    state_edge_mask = prep(rollouts['state_edge_mask'])
+                    next_state_node_inputs = prep(rollouts['next_state_node_inputs'])
+                    next_state_node_padding_mask = prep(rollouts['next_state_node_padding_mask'])
+                    next_state_edge_mask = prep(rollouts['next_state_edge_mask'])
 
                     observation = [node_inputs, node_padding_mask, edge_mask, current_index,
                                    current_edge, edge_padding_mask]
