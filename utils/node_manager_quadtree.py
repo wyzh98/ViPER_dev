@@ -61,28 +61,20 @@ class NodeManager:
             node = self.local_nodes_dict.find((coords[0], coords[1])).data
             node.update_neighbor_explored_nodes(extended_local_map_info, self.local_nodes_dict, plot_x, plot_y)
 
-    def update_local_safe_graph(self, robot_location, safe_frontiers, uncovered_safe_frontiers, extended_counter_safe_info, extended_safe_zone_info, extended_local_map_info):
-        extended_explore_node_coords, _ = get_local_node_coords(robot_location, extended_local_map_info)
-        extended_safe_node_coords, _ = get_local_node_coords(robot_location, extended_safe_zone_info, connected=False)
-        extended_counter_safe_node_coords, _ = get_local_node_coords(robot_location, extended_counter_safe_info, connected=False)
-        extended_node_coords = np.unique(np.concatenate((extended_explore_node_coords, extended_safe_node_coords)), axis=0)
+    def update_safe_graph(self, robot_location, safe_frontiers, uncovered_safe_frontiers, safe_zone_info, map_info):
+        explore_node_coords, _ = get_local_node_coords(robot_location, map_info)
+        safe_node_coords, _ = get_local_node_coords(robot_location, safe_zone_info, connected=False)
+        node_coords = np.unique(np.concatenate((explore_node_coords, safe_node_coords)), axis=0)
 
-        robot_cell = get_cell_position_from_coords(robot_location, extended_counter_safe_info)
-        robot_in_counter_safe = extended_counter_safe_info.map[robot_cell[1], robot_cell[0]] == 255  # FIXME: temporary solution for robot not in counter safe zone
-
-        for coords in extended_node_coords:
+        for coords in node_coords:
             node = self.check_node_exist_in_dict(coords)
             if node is not None:
                 node = node.data
-                if np.any(np.all(coords == extended_safe_node_coords, axis=1)):
+                if np.any(np.all(coords == safe_node_coords, axis=1)):
                     node.set_safe()
-                    node.update_observable_safe_frontiers(safe_frontiers, uncovered_safe_frontiers, extended_safe_zone_info)
+                    node.update_observable_safe_frontiers(safe_frontiers, uncovered_safe_frontiers, safe_zone_info)
                 else:
                     node.set_unsafe()
-                if np.any(np.all(coords == extended_counter_safe_node_coords, axis=1)):
-                    node.counter_safe = 1 if robot_in_counter_safe else 0
-                else:
-                    node.counter_safe = 0 if robot_in_counter_safe else 1
             else:
                 print("Warning: Node should be added in exploration graph first")
 
@@ -96,7 +88,6 @@ class NodeManager:
         safe_utility = []
         uncovered_safe_utility = []
         signal = []
-        counter_signal = []
 
         n_nodes = all_node_coords.shape[0]
         adjacent_matrix = np.ones((n_nodes, n_nodes)).astype(int)
@@ -107,7 +98,6 @@ class NodeManager:
             safe_utility.append(node.safe_utility)
             uncovered_safe_utility.append(node.uncovered_safe_utility)
             signal.append(node.safe)
-            counter_signal.append(node.counter_safe)
             for neighbor in node.neighbor_list:
                 index = np.argwhere(local_node_coords_to_check == neighbor[0] + neighbor[1] * 1j)
                 if index or index == [[0]]:
@@ -118,7 +108,6 @@ class NodeManager:
         safe_utility = np.array(safe_utility)
         uncovered_safe_utility = np.array(uncovered_safe_utility)
         signal = np.array(signal)
-        counter_signal = np.array(counter_signal)
 
         indices = np.argwhere(safe_utility > 0).reshape(-1)
         utility_node_coords = all_node_coords[indices]
@@ -149,7 +138,7 @@ class NodeManager:
             index = np.argwhere(local_node_coords_to_check == location_in_graph[0] + location_in_graph[1] * 1j)[0][0]
             if index != current_index:
                 occupancy[index] = 1
-        return (all_node_coords, explore_utility, safe_utility, uncovered_safe_utility, guidepost, signal, counter_signal,
+        return (all_node_coords, explore_utility, safe_utility, uncovered_safe_utility, guidepost, signal,
                 occupancy, adjacent_matrix, current_index, neighbor_indices)
 
     def get_underlying_node_graph(self, all_node_coords):
@@ -303,7 +292,6 @@ class LocalNode:
         self.uncovered_safe_utility = 0
         self.visited = 0
         self.safe = 0
-        self.counter_safe = 0
 
         self.neighbor_matrix = -np.ones((5, 5))
         self.neighbor_list = []
@@ -350,7 +338,7 @@ class LocalNode:
                     self.observable_explore_frontiers = np.concatenate((self.observable_explore_frontiers, point.reshape(1, 2)), axis=0)
         self.explore_utility = self.observable_explore_frontiers.shape[0] if self.observable_explore_frontiers.shape[0] > MIN_UTILITY else 0
 
-    def update_observable_safe_frontiers(self, safe_frontiers, uncovered_safe_frontiers, extended_safe_zone_info):
+    def update_observable_safe_frontiers(self, safe_frontiers, uncovered_safe_frontiers, safe_zone_info):
         if not self.safe:
             self.safe_utility = 0
             self.uncovered_safe_utility = 0
@@ -364,7 +352,7 @@ class LocalNode:
             dist_list = np.linalg.norm(safe_frontiers - self.coords, axis=-1)
             frontiers_in_range = safe_frontiers[dist_list < self.utility_range]
             for point in frontiers_in_range:
-                collision = check_collision(self.coords, point, extended_safe_zone_info)
+                collision = check_collision(self.coords, point, safe_zone_info)
                 if not collision:
                     observable_safe_frontiers.append(point)
                     if len(uncovered_safe_frontiers) > 0:

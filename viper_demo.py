@@ -408,7 +408,7 @@ class InteractiveWorker(TestWorker):
         for robot in self.robot_list:
             robot.update_graph(self.env.belief_info, deepcopy(self.env.robot_locations[robot.id]))
         for robot in self.robot_list:
-            robot.update_safe_graph(self.env.safe_info, self.env.uncovered_safe_frontiers, self.env.counter_safe_info)
+            robot.update_safe_graph(self.env.safe_info, self.env.uncovered_safe_frontiers)
         for robot in self.robot_list:
             robot.update_planning_state(self.env.robot_locations)
         if self.save_image:
@@ -468,7 +468,7 @@ class InteractiveWorker(TestWorker):
             for robot in self.robot_list:
                 robot.update_graph(self.env.belief_info, deepcopy(self.env.robot_locations[robot.id]))
             for robot in self.robot_list:
-                robot.update_safe_graph(self.env.safe_info, self.env.uncovered_safe_frontiers, self.env.counter_safe_info)
+                robot.update_safe_graph(self.env.safe_info, self.env.uncovered_safe_frontiers)
             for robot in self.robot_list:
                 robot.update_planning_state(self.env.robot_locations)
 
@@ -536,8 +536,8 @@ class InteractiveWorker(TestWorker):
             self.ax1.plot(robot_cell[0], robot_cell[1], c=c, marker='o', markersize=10, zorder=5)
 
             for i in range(n_segments):
-                traj_x = (np.array(robot.trajectory_x[i:i + 2]) - robot.global_map_info.map_origin_x) / robot.cell_size
-                traj_y = (np.array(robot.trajectory_y[i:i + 2]) - robot.global_map_info.map_origin_y) / robot.cell_size
+                traj_x = (np.array(robot.trajectory_x[i:i + 2]) - robot.map_info.map_origin_x) / robot.cell_size
+                traj_y = (np.array(robot.trajectory_y[i:i + 2]) - robot.map_info.map_origin_y) / robot.cell_size
                 self.ax1.plot(traj_x, traj_y, c=c, linewidth=2, alpha=alpha_values[i], zorder=3)
 
         self.ax1.axis('off')

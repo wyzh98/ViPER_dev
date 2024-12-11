@@ -5,13 +5,14 @@ from agent import Agent
 from model import PolicyNet
 from utils.utils import *
 from utils.node_manager_quadtree import NodeManager
+from utils.buffer import ReplayBuffer
 
 if not os.path.exists(gifs_path):
     os.makedirs(gifs_path)
 
 
 class Multi_agent_worker:
-    def __init__(self, meta_agent_id, policy_net, global_step, device='cpu', save_image=False):
+    def __init__(self, meta_agent_id, policy_net, replay_buffer, global_step, device='cpu', save_image=False):
         self.meta_agent_id = meta_agent_id
         self.global_step = global_step
         self.save_image = save_image
@@ -21,19 +22,16 @@ class Multi_agent_worker:
         self.n_agent = N_AGENTS
         self.node_manager = NodeManager(self.env.ground_truth_coords, self.env.ground_truth_info, explore=EXPLORATION, plot=self.save_image)
 
-        self.robot_list = [Agent(i, policy_net, self.node_manager, self.device, self.save_image) for i in range(self.n_agent)]
-
-        self.episode_buffer = []
+        self.replay_buffer = replay_buffer
+        self.robot_list = [Agent(i, policy_net, self.node_manager, self.replay_buffer, self.device, self.save_image) for i in range(self.n_agent)]
         self.perf_metrics = dict()
-        for i in range(24):
-            self.episode_buffer.append([])
 
     def run_episode(self):
         done = False
         for robot in self.robot_list:
             robot.update_graph(self.env.belief_info, deepcopy(self.env.robot_locations[robot.id]))
         for robot in self.robot_list:
-            robot.update_safe_graph(self.env.safe_info, self.env.uncovered_safe_frontiers, self.env.counter_safe_info)
+            robot.update_safe_graph(self.env.safe_info, self.env.uncovered_safe_frontiers)
         for robot in self.robot_list:
             robot.update_planning_state(self.env.robot_locations)
             robot.update_underlying_state()
@@ -70,7 +68,7 @@ class Multi_agent_worker:
             for robot in self.robot_list:
                 robot.update_graph(self.env.belief_info, deepcopy(self.env.robot_locations[robot.id]))
             for robot in self.robot_list:
-                robot.update_safe_graph(self.env.safe_info, self.env.uncovered_safe_frontiers, self.env.counter_safe_info)
+                robot.update_safe_graph(self.env.safe_info, self.env.uncovered_safe_frontiers)
 
             done = self.env.check_done()
 
@@ -110,9 +108,6 @@ class Multi_agent_worker:
             robot.save_next_observations(observation, next_node_index_list)
             robot.save_next_state(state)
 
-            for i in range(len(self.episode_buffer)):
-                self.episode_buffer[i] += robot.episode_buffer[i]
-
         # save gif
         if self.save_image:
             make_gif(gifs_path, self.global_step, self.env.frame_files, self.env.safe_rate)
@@ -149,6 +144,8 @@ class Multi_agent_worker:
         color_list = ['r', 'b', 'g', 'y', 'm', 'c', 'k', 'w', (1,0.5,0.5), (0.2,0.5,0.7)]
         robot = self.robot_list[0]
         nodes = get_cell_position_from_coords(robot.local_node_coords, robot.safe_zone_info)
+        alpha_mask = robot.safe_zone_info.map / 255 / 3
+        plt.imshow(robot.safe_zone_info.map, cmap='Greens', alpha=alpha_mask)
         plt.scatter(nodes[:, 0], nodes[:, 1], c=robot.safe_utility, s=5, zorder=2)
         for i in range(nodes.shape[0]):
             for j in range(i + 1, nodes.shape[0]):
@@ -179,9 +176,8 @@ class Multi_agent_worker:
             plt.plot(robot_cell[0], robot_cell[1], c=c, marker='o', markersize=10, zorder=5)
 
             for i in range(n_segments):
-                plt.plot((np.array(robot.trajectory_x[i:i + 2]) - robot.global_map_info.map_origin_x) / robot.cell_size,
-                         (np.array(robot.trajectory_y[i:i + 2]) - robot.global_map_info.map_origin_y) / robot.cell_size,
-                         c,
+                plt.plot((np.array(robot.trajectory_x[i:i + 2]) - robot.map_info.map_origin_x) / robot.cell_size,
+                         (np.array(robot.trajectory_y[i:i + 2]) - robot.map_info.map_origin_y) / robot.cell_size, c,
                          linewidth=2, alpha=alpha_values[i], zorder=3)
 
         plt.axis('off')
@@ -197,8 +193,9 @@ class Multi_agent_worker:
 
 if __name__ == '__main__':
     from parameter import *
-    policy_net = PolicyNet(NODE_INPUT_DIM, EMBEDDING_DIM)
+    policynet = PolicyNet(NODE_INPUT_DIM, EMBEDDING_DIM)
+    buffer = ReplayBuffer(REPLAY_SIZE, BATCH_SIZE)
     # ckp = torch.load('model/viper/checkpoint.pth', map_location='cpu')
-    # policy_net.load_state_dict(ckp['policy_model'])
-    worker = Multi_agent_worker(0, policy_net, 0, 'cpu', False)
+    # policynet.load_state_dict(ckp['policy_model'])
+    worker = Multi_agent_worker(0, policynet, buffer, 0, 'cpu', False)
     worker.run_episode()
