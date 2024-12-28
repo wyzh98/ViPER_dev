@@ -184,7 +184,7 @@ class TestWorker:
 
 if __name__ == '__main__':
     from model import PolicyNet
-    net = PolicyNet(8, 128)
+    net = PolicyNet(7, 128)
     ckp = torch.load(f'{model_path}/checkpoint.pth', weights_only=True)
     net.load_state_dict(ckp['policy_model'])
     test_worker = TestWorker(0, net, 0, save_image=True, greedy=True, test=True)

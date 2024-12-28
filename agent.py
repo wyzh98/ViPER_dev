@@ -33,7 +33,8 @@ class Agent:
         # local graph
         (self.local_node_coords, self.explore_utility, self.safe_utility, self.uncovered_safe_utility, self.guidepost,
          self.signal, self.occupancy) = None, None, None, None, None, None, None
-        self.current_local_index, self.local_adjacent_matrix, self.local_neighbor_indices = None, None, None
+        self.current_local_index, self.local_adjacent_matrix, self.local_neighbor_indices, self.traversable_indices = (
+            None, None, None, None)
 
         # ground truth graph (only for critic)
         self.true_node_coords, self.true_adjacent_matrix = None, None
@@ -94,7 +95,7 @@ class Agent:
 
     def update_planning_state(self, robot_locations):
         (self.local_node_coords, self.explore_utility, self.safe_utility, self.uncovered_safe_utility, self.guidepost, self.signal, self.occupancy, self.local_adjacent_matrix,
-         self.current_local_index, self.local_neighbor_indices) = self.node_manager.get_all_node_graph(self.location, robot_locations)
+         self.current_local_index, self.local_neighbor_indices, self.traversable_indices) = self.node_manager.get_all_node_graph(self.location, robot_locations)
 
     def update_underlying_state(self):
         self.true_node_coords, self.true_adjacent_matrix = self.node_manager.get_underlying_node_graph(self.local_node_coords)
@@ -109,6 +110,7 @@ class Agent:
         current_local_index = self.current_local_index
         local_edge_mask = self.local_adjacent_matrix
         current_local_edge = self.local_neighbor_indices
+        local_traversable_edge = self.traversable_indices
         n_local_node = local_node_coords.shape[0]
 
         current_local_node_coords = local_node_coords[self.current_local_index]
@@ -143,17 +145,23 @@ class Agent:
 
         current_local_edge = torch.tensor(current_local_edge).unsqueeze(0).to(self.device)
         k_size = current_local_edge.size()[-1]
+        current_traversable_edge = torch.tensor(local_traversable_edge).unsqueeze(0).to(self.device)
+        local_edge_padding_mask = torch.ones_like(current_local_edge).to(self.device)
+        local_edge_padding_mask[torch.isin(current_local_edge, current_traversable_edge)] = 0
         if pad:
-            padding = torch.nn.ConstantPad1d((0, LOCAL_K_SIZE - k_size), 0)
-            current_local_edge = padding(current_local_edge)
+            padding0 = torch.nn.ConstantPad1d((0, LOCAL_K_PADDING_SIZE - k_size), 0)
+            current_local_edge = padding0(current_local_edge)
+            padding1 = torch.nn.ConstantPad1d((0, LOCAL_K_PADDING_SIZE - k_size), 1)
+            local_edge_padding_mask = padding1(local_edge_padding_mask)
         current_local_edge = current_local_edge.unsqueeze(-1)
+        local_edge_padding_mask = local_edge_padding_mask.unsqueeze(0)
 
-        local_edge_padding_mask = torch.zeros((1, 1, k_size), dtype=torch.int16).to(self.device)
-        # current_in_edge = np.argwhere(current_local_edge == self.current_local_index)[0][0]
-        # local_edge_padding_mask[0, 0, current_in_edge] = 1  # do not allow stay at the same node
-        if pad:
-            padding = torch.nn.ConstantPad1d((0, LOCAL_K_SIZE - k_size), 1)
-            local_edge_padding_mask = padding(local_edge_padding_mask)
+        # local_edge_padding_mask = torch.zeros((1, 1, k_size), dtype=torch.int16).to(self.device)
+        # # current_in_edge = np.argwhere(current_local_edge == self.current_local_index)[0][0]
+        # # local_edge_padding_mask[0, 0, current_in_edge] = 1  # do not allow stay at the same node
+        # if pad:
+        #     padding = torch.nn.ConstantPad1d((0, LOCAL_K_PADDING_SIZE - k_size), 1)
+        #     local_edge_padding_mask = padding(local_edge_padding_mask)
 
         return [local_node_inputs, local_node_padding_mask, local_edge_mask, current_local_index, current_local_edge, local_edge_padding_mask]
 

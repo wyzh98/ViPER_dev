@@ -91,6 +91,7 @@ class NodeManager:
 
         n_nodes = all_node_coords.shape[0]
         adjacent_matrix = np.ones((n_nodes, n_nodes)).astype(int)
+        traversable_matrix = np.ones((n_nodes, n_nodes)).astype(int)
         local_node_coords_to_check = all_node_coords[:, 0] + all_node_coords[:, 1] * 1j
         for i, coords in enumerate(all_node_coords):
             node = self.local_nodes_dict.find((coords[0], coords[1])).data
@@ -103,6 +104,10 @@ class NodeManager:
                 if index or index == [[0]]:
                     index = index[0][0]
                     adjacent_matrix[i, index] = 0
+
+                    d_to_neighbor = np.linalg.norm(neighbor - coords)
+                    if d_to_neighbor < ACTION_RANGE:  # traversable with agent centered
+                        traversable_matrix[i, index] = 0
 
         explore_utility = np.array(explore_utility)
         safe_utility = np.array(safe_utility)
@@ -131,6 +136,7 @@ class NodeManager:
         robot_in_graph = self.local_nodes_dict.nearest_neighbors(robot_location.tolist(), 1)[0].data.coords
         current_index = np.argwhere(local_node_coords_to_check == robot_in_graph[0] + robot_in_graph[1] * 1j)[0][0]
         neighbor_indices = np.argwhere(adjacent_matrix[current_index] == 0).reshape(-1)
+        traversable_indices = np.argwhere(traversable_matrix[current_index] == 0).reshape(-1)
 
         occupancy = np.zeros((n_nodes, 1))
         for location in robot_locations:
@@ -139,7 +145,7 @@ class NodeManager:
             if index != current_index:
                 occupancy[index] = 1
         return (all_node_coords, explore_utility, safe_utility, uncovered_safe_utility, guidepost, signal,
-                occupancy, adjacent_matrix, current_index, neighbor_indices)
+                occupancy, adjacent_matrix, current_index, neighbor_indices, traversable_indices)
 
     def get_underlying_node_graph(self, all_node_coords):
         ground_truth_coords = copy.deepcopy(all_node_coords).tolist()
@@ -293,10 +299,19 @@ class LocalNode:
         self.visited = 0
         self.safe = 0
 
-        self.neighbor_matrix = -np.ones((5, 5))
-        self.neighbor_list = []
-        self.neighbor_matrix[2, 2] = 1
-        self.neighbor_list.append(self.coords)
+        self.center_index = int(SENSOR_RANGE // NODE_RESOLUTION)
+        self.neighbor_matrix_size = self.center_index * 2 + 1
+        self.neighbor_matrix = -np.ones((self.neighbor_matrix_size, self.neighbor_matrix_size)).astype(int)
+        self.neighbor_matrix[self.center_index, self.center_index] = 1
+        self.neighbor_list = [self.coords]
+        self.neighbor_mask = self.generate_circle(self.neighbor_matrix_size)
+
+    @staticmethod
+    def generate_circle(n):
+        Y, X = np.ogrid[:n, :n]
+        center = n // 2
+        mask = (X - center) ** 2 + (Y - center) ** 2 <= (n // 2) ** 2
+        return mask.astype(int)
 
     def init_observable_explore_frontiers(self, local_frontiers, extended_local_map_info):
         if local_frontiers.shape[0] == 0:
@@ -366,17 +381,15 @@ class LocalNode:
     def update_neighbor_explored_nodes(self, extended_local_map_info, nodes_dict, plot_x=None, plot_y=None):
         for i in range(self.neighbor_matrix.shape[0]):
             for j in range(self.neighbor_matrix.shape[1]):
-                if self.neighbor_matrix[i, j] != -1:
+                if self.neighbor_matrix[i, j] != -1 or (self.neighbor_mask[i, j] == 0):
                     continue
                 else:
-                    center_index = self.neighbor_matrix.shape[0] // 2
-                    if i == center_index and j == center_index:
+                    if i == self.center_index and j == self.center_index:
                         self.neighbor_matrix[i, j] = 1
-                        # self.neighbor_list.append(self.coords)
                         continue
 
-                    neighbor_coords = np.around(np.array([self.coords[0] + (i - center_index) * NODE_RESOLUTION,
-                                                          self.coords[1] + (j - center_index) * NODE_RESOLUTION]), 1)
+                    neighbor_coords = np.around(np.array([self.coords[0] + (i - self.center_index) * NODE_RESOLUTION,
+                                                          self.coords[1] + (j - self.center_index) * NODE_RESOLUTION]), 1)
                     neighbor_node = nodes_dict.find((neighbor_coords[0], neighbor_coords[1]))
                     if neighbor_node is None:
                         cell = get_cell_position_from_coords(neighbor_coords, extended_local_map_info)
@@ -387,8 +400,8 @@ class LocalNode:
                     else:
                         neighbor_node = neighbor_node.data
                         collision = check_collision(self.coords, neighbor_coords, extended_local_map_info)
-                        neighbor_matrix_x = center_index + (center_index - i)
-                        neighbor_matrix_y = center_index + (center_index - j)
+                        neighbor_matrix_x = self.center_index + (self.center_index - i)
+                        neighbor_matrix_y = self.center_index + (self.center_index - j)
                         if not collision:
                             self.neighbor_matrix[i, j] = 1
                             self.neighbor_list.append(neighbor_coords)
