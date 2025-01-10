@@ -59,11 +59,7 @@ class Multi_agent_worker:
 
             curr_node_indices = np.array([robot.current_local_index for robot in self.robot_list])
 
-            self.env.decrease_safety(selected_locations)
-
             self.env.step(selected_locations)
-
-            self.env.classify_safe_frontier(selected_locations)
 
             for robot in self.robot_list:
                 robot.update_graph(self.env.belief_info, deepcopy(self.env.robot_locations[robot.id]))
@@ -198,6 +194,7 @@ class Multi_agent_worker:
 
 if __name__ == '__main__':
     from parameter import *
+    import torch
     policynet = PolicyNet(NODE_INPUT_DIM, EMBEDDING_DIM)
     # ckp = torch.load('model/viper/checkpoint.pth', map_location='cpu')
     # policynet.load_state_dict(ckp['policy_model'])

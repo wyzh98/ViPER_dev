@@ -185,6 +185,8 @@ class Env:
         self.safe_rate = np.sum(self.safe_zone > 0) / np.sum(self.ground_truth == 255)
 
     def step(self, next_waypoints):
+        self.decrease_safety(next_waypoints)
+
         self.robot_locations = next_waypoints
         next_cells = get_cell_position_from_coords(next_waypoints, self.belief_info)
         for cell in next_cells:
@@ -192,5 +194,6 @@ class Env:
             self.update_safe_zone(cell)
         self.explore_frontiers = get_explore_frontier(self.belief_info)
         self.safe_zone_frontiers = get_safe_zone_frontier(self.safe_info, self.belief_info)
+        self.classify_safe_frontier(next_waypoints)
         self.evaluate_exploration_rate()
         self.evaluate_safe_zone_rate()
