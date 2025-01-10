@@ -15,7 +15,7 @@ NODE_RESOLUTION = 4.0  # meter of node interval
 DOWNSAMPLE_SIZE = NODE_RESOLUTION // CELL_SIZE
 
 SENSOR_RANGE = 20  # meter, 7.9812 for Gregorin's maps
-ACTION_RANGE = 20  # meter, traversable distance
+ACTION_RANGE = 12  # meter, traversable distance
 UTILITY_RANGE = 0.8 * SENSOR_RANGE
 EVADER_SPEED = SENSOR_RANGE
 MIN_UTILITY = 0

@@ -2,6 +2,9 @@ from skimage import io
 from skimage.measure import block_reduce
 from copy import deepcopy
 
+import matplotlib.pyplot as plt
+from matplotlib.collections import LineCollection
+
 from utils.sensor import exploration_sensor, coverage_sensor, decrease_safety_by_frontier
 from test_parameter import GROUP_START
 from utils.utils import *
@@ -184,16 +187,85 @@ class Env:
     def evaluate_safe_zone_rate(self):
         self.safe_rate = np.sum(self.safe_zone > 0) / np.sum(self.ground_truth == 255)
 
-    def step(self, next_waypoints):
-        self.decrease_safety(next_waypoints)
+    def step(self, next_waypoints, step, robot_list):
+        middle_waypoints = np.linspace(self.robot_locations, next_waypoints, 6)[1:]
+        for ministep, middle_waypoint in enumerate(middle_waypoints):
+            self.decrease_safety(middle_waypoint)
 
-        self.robot_locations = next_waypoints
-        next_cells = get_cell_position_from_coords(next_waypoints, self.belief_info)
-        for cell in next_cells:
-            self.update_robot_belief(cell)
-            self.update_safe_zone(cell)
-        self.explore_frontiers = get_explore_frontier(self.belief_info)
-        self.safe_zone_frontiers = get_safe_zone_frontier(self.safe_info, self.belief_info)
-        self.classify_safe_frontier(next_waypoints)
-        self.evaluate_exploration_rate()
-        self.evaluate_safe_zone_rate()
+            self.robot_locations = middle_waypoint
+            next_cells = get_cell_position_from_coords(middle_waypoint, self.belief_info)
+            for cell in next_cells:
+                self.update_robot_belief(cell)
+                self.update_safe_zone(cell)
+            self.explore_frontiers = get_explore_frontier(self.belief_info)
+            self.safe_zone_frontiers = get_safe_zone_frontier(self.safe_info, self.belief_info)
+            self.evaluate_exploration_rate()
+            self.evaluate_safe_zone_rate()
+            if self.plot:
+                for robot in robot_list:
+                    robot.trajectory_x.append(middle_waypoint[robot.id][0])
+                    robot.trajectory_y.append(middle_waypoint[robot.id][1])
+                self.plot_env(self.episode_index, step, ministep, robot_list)
+        self.classify_safe_frontier(self.robot_locations)
+
+    def plot_env(self, episode, step, ministep, robot_list):
+        plt.switch_backend('agg')
+        plt.figure(figsize=(9, 4))
+        plt.subplot(1, 2, 2)
+        plt.imshow(self.robot_belief, cmap='gray', vmin=0)
+        plt.axis('off')
+        color_list = ['r', 'b', 'g', 'y', 'm', 'c', 'k', 'w', (1,0.5,0.5), (0.2,0.5,0.7)]
+        cmap_list = ['Reds', 'Blues', 'Greens', 'YlOrBr', 'Purples', 'PuBuGn', 'Greys', 'Greys', 'RdPu', 'BuPu', 'GnBu']
+        robot = robot_list[0]
+        nodes = get_cell_position_from_coords(robot.local_node_coords, robot.safe_zone_info)
+        alpha_mask = robot.safe_zone_info.map / 255 / 3
+        plt.imshow(robot.safe_zone_info.map, cmap='Greens', alpha=alpha_mask)
+        plt.scatter(nodes[:, 0], nodes[:, 1], c=robot.safe_utility, s=5, zorder=2)
+        # for i in range(nodes.shape[0]):
+        #     for j in range(i + 1, nodes.shape[0]):
+        #         if robot.local_adjacent_matrix[i, j] == 0:
+        #             plt.plot([nodes[i, 0], nodes[j, 0]], [nodes[i, 1], nodes[j, 1]], c=(0.988, 0.557, 0.675), linewidth=1.5, zorder=1)
+
+        plt.subplot(1, 2, 1)
+        plt.imshow(self.robot_belief, cmap='gray')
+
+        self.classify_safe_frontier(self.robot_locations)
+        covered_safe_frontier_cells = get_cell_position_from_coords(self.covered_safe_frontiers, self.safe_info).reshape(-1, 2)
+        uncovered_safe_frontier_cells = get_cell_position_from_coords(self.uncovered_safe_frontiers, self.safe_info).reshape(-1, 2)
+        if covered_safe_frontier_cells.shape[0] != 0:
+            plt.scatter(covered_safe_frontier_cells[:, 0], covered_safe_frontier_cells[:, 1], c='g', s=1, zorder=6)
+        if uncovered_safe_frontier_cells.shape[0] != 0:
+            plt.scatter(uncovered_safe_frontier_cells[:, 0], uncovered_safe_frontier_cells[:, 1], c='r', s=1, zorder=6)
+
+        for robot in robot_list:
+            c = color_list[robot.id]
+            x = (np.array(robot.trajectory_x) - robot.map_info.map_origin_x) / robot.cell_size
+            y = (np.array(robot.trajectory_y) - robot.map_info.map_origin_y) / robot.cell_size
+
+            if robot.id == 0:
+                alpha_mask = robot.safe_zone_info.map / 255 / 3
+                plt.imshow(robot.safe_zone_info.map, cmap='Greens', alpha=alpha_mask)
+
+            robot_cell = get_cell_position_from_coords(self.robot_locations[robot.id], robot.safe_zone_info)
+            plt.plot(robot_cell[0], robot_cell[1], c=c, marker='o', markersize=10, zorder=5)
+
+            points = np.array([x, y]).T.reshape(-1, 1, 2)
+            segments = np.concatenate([points[:-1], points[1:]], axis=1)
+            n_segments = len(segments)
+            t = np.linspace(0.0, 1.0, n_segments)
+            lc = LineCollection(segments, cmap=cmap_list[robot.id], norm=plt.Normalize(0, 1), linewidth=2)
+            lc.set_array(t)
+            lc.set_alpha(1.0)
+            plt.gca().add_collection(lc)
+
+
+        plt.axis('off')
+        plt.suptitle('Explored%: {:.4g} | Cleared%: {:.4g} | Length: {:.4g} | Step: {}.{}'.format(self.explored_rate,
+                                                                                                  self.safe_rate,
+                                                                                                  max([robot.travel_dist for robot in robot_list]),
+                                                                                                  step, ministep))
+        plt.tight_layout()
+        frame = f'{gifs_path}/{episode}_{step}.{ministep}_samples.png'
+        plt.savefig(frame, dpi=150)
+        plt.close()
+        self.frame_files.append(frame)

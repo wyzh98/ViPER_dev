@@ -1,9 +1,9 @@
-TEST_N_AGENTS = 4
+TEST_N_AGENTS = 3
 
 EXPLORATION = True  # True: unknown map, False: known map
 
 GROUP_START = True  # True: start from the same location, False: start from different locations
-INPUT_DIM = 8
+INPUT_DIM = 7
 EMBEDDING_DIM = 128
 MAX_EPISODE_STEP = 128
 UNBOUND_SPEED = False  # evader speed
