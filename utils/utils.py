@@ -191,14 +191,13 @@ def push_frontier_to_free(data, map_info):
 
 
 def remove_isolate_frontiers(data, voxel_size):
-    try:
-        differences = data[:, np.newaxis, :] - data[np.newaxis, :, :]
-    except IndexError:
-        return data
+    if len(data) <= 1:
+        return np.array([])
+    differences = data[:, np.newaxis, :] - data[np.newaxis, :, :]
     distance_to_otherfrontiers = np.sqrt(np.sum(differences ** 2, axis=2))
     np.fill_diagonal(distance_to_otherfrontiers, np.inf)
     min_distance = np.min(distance_to_otherfrontiers, axis=1)
-    data = data[min_distance < voxel_size * 2]
+    data = data[min_distance < voxel_size * 2]  # tunable
     return data
 
 

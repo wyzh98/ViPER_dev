@@ -293,7 +293,7 @@ class LocalNode:
         self.observable_explore_frontiers = self.init_observable_explore_frontiers(local_frontiers, extended_local_map_info)
         self.observable_safe_frontiers = None
         self.observable_uncovered_safe_frontiers = None
-        self.explore_utility = self.observable_explore_frontiers.shape[0] if self.observable_explore_frontiers.shape[0] > MIN_UTILITY else 0
+        self.explore_utility = self.observable_explore_frontiers.shape[0]
         self.safe_utility = 0
         self.uncovered_safe_utility = 0
         self.visited = 0
@@ -351,7 +351,7 @@ class LocalNode:
                 collision = check_collision(self.coords, point, extended_local_map_info)
                 if not collision:
                     self.observable_explore_frontiers = np.concatenate((self.observable_explore_frontiers, point.reshape(1, 2)), axis=0)
-        self.explore_utility = self.observable_explore_frontiers.shape[0] if self.observable_explore_frontiers.shape[0] > MIN_UTILITY else 0
+        self.explore_utility = self.observable_explore_frontiers.shape[0]
 
     def update_observable_safe_frontiers(self, safe_frontiers, uncovered_safe_frontiers, safe_zone_info):
         if not self.safe:
@@ -375,8 +375,8 @@ class LocalNode:
                             observable_uncovered_safe_frontiers.append(point)
             self.observable_safe_frontiers = np.array(observable_safe_frontiers)
             self.observable_uncovered_safe_frontiers = np.array(observable_uncovered_safe_frontiers)
-            self.safe_utility = self.observable_safe_frontiers.shape[0] if self.observable_safe_frontiers.shape[0] > MIN_UTILITY else 0
-            self.uncovered_safe_utility = self.observable_uncovered_safe_frontiers.shape[0] if self.observable_uncovered_safe_frontiers.shape[0] > MIN_UTILITY else 0
+            self.safe_utility = self.observable_safe_frontiers.shape[0]
+            self.uncovered_safe_utility = self.observable_uncovered_safe_frontiers.shape[0]
 
     def update_neighbor_explored_nodes(self, extended_local_map_info, nodes_dict, plot_x=None, plot_y=None):
         for i in range(self.neighbor_matrix.shape[0]):

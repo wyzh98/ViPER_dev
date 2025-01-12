@@ -20,7 +20,7 @@ class Env:
 
         self.cell_size = CELL_SIZE  # meter
         self.sensor_range = SENSOR_RANGE  # meter
-        self.safety_range = EVADER_SPEED  # meter
+        self.safety_range = EVADER_SPEED / STEP_INTERPOLATION  # meter
         self.ground_truth, initial_cell = self.import_ground_truth(episode_index)
         self.belief_origin_x = -np.round(initial_cell[0] * self.cell_size, 1)  # meter
         self.belief_origin_y = -np.round(initial_cell[1] * self.cell_size, 1)  # meter
@@ -188,7 +188,7 @@ class Env:
         self.safe_rate = np.sum(self.safe_zone > 0) / np.sum(self.ground_truth == 255)
 
     def step(self, next_waypoints, step, robot_list):
-        middle_waypoints = np.linspace(self.robot_locations, next_waypoints, 6)[1:]
+        middle_waypoints = np.linspace(self.robot_locations, next_waypoints, STEP_INTERPOLATION+1)[1:]
         for ministep, middle_waypoint in enumerate(middle_waypoints):
             self.decrease_safety(middle_waypoint)
 
