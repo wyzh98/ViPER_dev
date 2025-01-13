@@ -19,7 +19,6 @@ SENSOR_RANGE = 20  # meter, 7.9812 for Gregorin's maps
 ACTION_RANGE = 12  # meter, traversable distance
 UTILITY_RANGE = 0.8 * SENSOR_RANGE
 EVADER_SPEED = SENSOR_RANGE
-MIN_UTILITY = 0
 FRONTIER_CELL_SIZE = 4 * CELL_SIZE
 
 LOCAL_MAP_SIZE = 40  # meter

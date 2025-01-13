@@ -75,8 +75,6 @@ class NodeManager:
                     node.update_observable_safe_frontiers(safe_frontiers, uncovered_safe_frontiers, safe_zone_info)
                 else:
                     node.set_unsafe()
-            else:
-                print("Warning: Node should be added in exploration graph first")
 
     def get_all_node_graph(self, robot_location, robot_locations):
         all_node_coords = []
