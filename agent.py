@@ -96,9 +96,11 @@ class Agent:
     def update_planning_state(self, robot_locations):
         (self.local_node_coords, self.explore_utility, self.safe_utility, self.uncovered_safe_utility, self.guidepost, self.signal, self.occupancy, self.local_adjacent_matrix,
          self.current_local_index, self.local_neighbor_indices, self.traversable_indices) = self.node_manager.get_all_node_graph(self.location, robot_locations)
+        self.node_manager.get_topological_node_graph(self.location, self.local_adjacent_matrix, self.local_node_coords)
 
     def update_underlying_state(self):
         self.true_node_coords, self.true_adjacent_matrix = self.node_manager.get_underlying_node_graph(self.local_node_coords)
+        self.node_manager.get_topological_node_graph(self.location, self.true_adjacent_matrix, self.true_node_coords)
 
     def get_observation(self, pad=True):
         local_node_coords = self.local_node_coords
