@@ -175,18 +175,22 @@ def main():
                     state_node_inputs = prep(rollouts['state_node_inputs'])
                     state_node_padding_mask = prep(rollouts['state_node_padding_mask'])
                     state_edge_mask = prep(rollouts['state_edge_mask'])
+                    current_state_index = prep(rollouts['current_state_index'])
+                    current_state_edge = prep(rollouts['current_state_edge'])
                     next_state_node_inputs = prep(rollouts['next_state_node_inputs'])
                     next_state_node_padding_mask = prep(rollouts['next_state_node_padding_mask'])
                     next_state_edge_mask = prep(rollouts['next_state_edge_mask'])
+                    next_current_state_index = prep(rollouts['next_current_state_index'])
+                    next_current_state_edge = prep(rollouts['next_current_state_edge'])
 
                     observation = [node_inputs, node_padding_mask, edge_mask, current_index,
                                    current_edge, edge_padding_mask]
                     next_observation = [next_node_inputs, next_node_padding_mask, next_edge_mask,
                                         next_current_index, next_current_edge, next_edge_padding_mask]
-                    state = [state_node_inputs, state_node_padding_mask, state_edge_mask, current_index, current_edge,
-                             all_agent_indices, all_agent_next_indices]
-                    next_state = [next_state_node_inputs, next_state_node_padding_mask, next_state_edge_mask, next_current_index,
-                                  next_current_edge, all_agent_next_indices, next_all_agent_next_indices]
+                    state = [state_node_inputs, state_node_padding_mask, state_edge_mask, current_state_index,
+                             current_state_edge, all_agent_indices, all_agent_next_indices]
+                    next_state = [next_state_node_inputs, next_state_node_padding_mask, next_state_edge_mask,
+                                  next_current_state_index, next_current_state_edge, all_agent_next_indices, next_all_agent_next_indices]
 
                     # SAC
                     with torch.no_grad():

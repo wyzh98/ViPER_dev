@@ -33,11 +33,18 @@ class Agent:
         # local graph
         (self.local_node_coords, self.explore_utility, self.safe_utility, self.uncovered_safe_utility, self.guidepost,
          self.signal, self.occupancy) = None, None, None, None, None, None, None
-        self.current_local_index, self.local_adjacent_matrix, self.local_neighbor_indices, self.traversable_indices = (
-            None, None, None, None)
+        self.current_local_index, self.local_adjacent_matrix, self.local_neighbor_indices, self.traversable_indices = None, None, None, None
+
+        # topological graph
+        self.cliques, self.local_node_type, self.topological_node_coords = None, None, None
+
+        # hybrid graph
+        self.hybrid_node_coords, self.current_true_hybrid_index, self.hybrid_adjacent_matrix, self.hybrid_node_safe_utility = None, None, None, None
 
         # ground truth graph (only for critic)
         self.true_node_coords, self.true_adjacent_matrix = None, None
+        self.true_hybrid_node_coords, self.true_hybrid_adjacent_matrix = None, None
+        self.true_cliques, self.true_node_type, self.true_topological_node_coords = None, None, None
 
         self.travel_dist = 0
 
@@ -96,54 +103,98 @@ class Agent:
     def update_planning_state(self, robot_locations):
         (self.local_node_coords, self.explore_utility, self.safe_utility, self.uncovered_safe_utility, self.guidepost, self.signal, self.occupancy, self.local_adjacent_matrix,
          self.current_local_index, self.local_neighbor_indices, self.traversable_indices) = self.node_manager.get_all_node_graph(self.location, robot_locations)
-        self.node_manager.get_topological_node_graph(self.location, self.local_adjacent_matrix, self.local_node_coords)
+        self.cliques, self.topological_node_coords, self.topological_adjacent_matrix = self.node_manager.get_topological_node_graph(self.local_adjacent_matrix, self.local_node_coords)
+        self.local_node_type = self.node_manager.get_hybrid_node_graph(robot_locations, self.local_node_coords, self.topological_node_coords, self.cliques)
 
-    def update_underlying_state(self):
+    def update_underlying_state(self, robot_locations):
         self.true_node_coords, self.true_adjacent_matrix = self.node_manager.get_underlying_node_graph(self.local_node_coords)
-        self.node_manager.get_topological_node_graph(self.location, self.true_adjacent_matrix, self.true_node_coords)
+        self.true_cliques, self.true_topological_node_coords = self.node_manager.get_topological_node_graph(self.true_adjacent_matrix, self.true_node_coords)
+        self.true_node_type = self.node_manager.get_hybrid_node_graph(robot_locations, self.true_node_coords, self.true_topological_node_coords, self.true_cliques)
 
     def get_observation(self, pad=True):
-        local_node_coords = self.local_node_coords
-        local_node_safe_utility = self.safe_utility.reshape(-1, 1)
-        local_node_uncovered_safe_utility = self.uncovered_safe_utility.reshape(-1, 1)
-        local_node_guidepost = self.guidepost.reshape(-1, 1)
-        local_node_occupancy = self.occupancy.reshape(-1, 1)
-        local_node_signal = self.signal.reshape(-1, 1)
-        current_local_index = self.current_local_index
-        local_edge_mask = self.local_adjacent_matrix
-        current_local_edge = self.local_neighbor_indices
-        local_traversable_edge = self.traversable_indices
-        n_local_node = local_node_coords.shape[0]
+        hybrid_node_coords = []
+        hybrid_node_safe_utility = []
+        hybrid_node_uncovered_safe_utility = []
+        hybrid_node_guidepost = []
+        hybrid_node_signal = []
+        hybrid_node_occupancy = []
+        hybrid_node_clique_center = []
+        for i, coords in enumerate(self.local_node_coords):
+            if self.local_node_type[i] == 0:  # keep node
+                hybrid_node_coords.append(coords)
+                hybrid_node_safe_utility.append(self.safe_utility[i])
+                hybrid_node_uncovered_safe_utility.append(self.uncovered_safe_utility[i])
+                hybrid_node_guidepost.append(self.guidepost[i])
+                hybrid_node_signal.append(self.signal[i])
+                hybrid_node_occupancy.append(self.occupancy[i])
+                hybrid_node_clique_center.append(0)
+            elif self.local_node_type[i] == 1:  # clique center
+                clique_index = next(j for j, clique in enumerate(self.cliques) if i in clique)
+                safe_utility_clique = self.safe_utility[self.cliques[clique_index]].max()
+                uncovered_safe_utility_clique = self.uncovered_safe_utility[self.cliques[clique_index]].max()
+                guidepost_clique = self.guidepost[self.cliques[clique_index]].any()
+                signal_clique = self.signal[self.cliques[clique_index]].all()
+                occupancy_clique = self.occupancy[self.cliques[clique_index]].any()  # always 0
+                hybrid_node_coords.append(coords)
+                hybrid_node_safe_utility.append(safe_utility_clique)
+                hybrid_node_uncovered_safe_utility.append(uncovered_safe_utility_clique)
+                hybrid_node_guidepost.append(guidepost_clique)
+                hybrid_node_signal.append(signal_clique)
+                hybrid_node_occupancy.append(occupancy_clique)
+                hybrid_node_clique_center.append(1)
+            else:  # remove non-robot-neighbor non-clique-center nodes
+                pass
+        hybrid_node_coords = np.array(hybrid_node_coords).reshape(-1, 2)
+        self.hybrid_node_coords = hybrid_node_coords
+        hybrid_node_safe_utility = np.array(hybrid_node_safe_utility).reshape(-1, 1)
+        self.hybrid_node_safe_utility = hybrid_node_safe_utility
+        hybrid_node_uncovered_safe_utility = np.array(hybrid_node_uncovered_safe_utility).reshape(-1, 1)
+        hybrid_node_guidepost = np.array(hybrid_node_guidepost).reshape(-1, 1)
+        hybrid_node_signal = np.array(hybrid_node_signal).reshape(-1, 1)
+        hybrid_node_occupancy = np.array(hybrid_node_occupancy).reshape(-1, 1)
+        hybrid_node_clique_center = np.array(hybrid_node_clique_center).reshape(-1, 1)
 
-        current_local_node_coords = local_node_coords[self.current_local_index]
-        local_node_coords = np.concatenate((local_node_coords[:, 0].reshape(-1, 1) - current_local_node_coords[0],
-                                            local_node_coords[:, 1].reshape(-1, 1) - current_local_node_coords[1]),
+        remove_indices = np.argwhere(np.array(self.local_node_type) == -1).flatten()
+        hybrid_edge_mask = np.delete(self.local_adjacent_matrix, remove_indices, axis=0)
+        hybrid_edge_mask = np.delete(hybrid_edge_mask, remove_indices, axis=1)
+        self.hybrid_adjacent_matrix = hybrid_edge_mask
+
+        current_local_node_coords = self.local_node_coords[self.current_local_index]
+        current_hybrid_index = np.argwhere(np.all(hybrid_node_coords == current_local_node_coords, axis=1)).flatten()[0]
+
+        current_local_edge = np.argwhere(hybrid_edge_mask[current_hybrid_index] == 0).flatten()
+        old_to_new_neighbor_map = {old: new for old, new in zip(self.local_neighbor_indices, current_local_edge)}
+        local_traversable_edge = [old_to_new_neighbor_map[old] for old in self.traversable_indices]
+        n_hybrid_node = hybrid_node_coords.shape[0]
+
+        hybrid_node_coords = np.concatenate((hybrid_node_coords[:, 0].reshape(-1, 1) - current_local_node_coords[0],
+                                            hybrid_node_coords[:, 1].reshape(-1, 1) - current_local_node_coords[1]),
                                            axis=-1) / LOCAL_MAP_SIZE
-        local_node_safe_utility = local_node_safe_utility / 30
-        local_node_uncovered_safe_utility = local_node_uncovered_safe_utility / 30
-        local_node_inputs = np.concatenate((local_node_coords, local_node_safe_utility, local_node_uncovered_safe_utility,
-                                            local_node_guidepost, local_node_signal, local_node_occupancy), axis=1)
-        local_node_inputs = torch.FloatTensor(local_node_inputs).unsqueeze(0).to(self.device)
+        hybrid_node_safe_utility = hybrid_node_safe_utility / 30
+        hybrid_node_uncovered_safe_utility = hybrid_node_uncovered_safe_utility / 30
+
+        node_inputs = np.concatenate((hybrid_node_coords, hybrid_node_safe_utility, hybrid_node_uncovered_safe_utility,
+                                      hybrid_node_guidepost, hybrid_node_signal, hybrid_node_occupancy, hybrid_node_clique_center), axis=1)
+        node_inputs = torch.FloatTensor(node_inputs).unsqueeze(0).to(self.device)
 
         if pad:
-            assert local_node_coords.shape[0] < LOCAL_NODE_PADDING_SIZE, print(local_node_coords.shape[0])
-            padding = torch.nn.ZeroPad2d((0, 0, 0, LOCAL_NODE_PADDING_SIZE - n_local_node))
-            local_node_inputs = padding(local_node_inputs)
+            assert hybrid_node_coords.shape[0] < LOCAL_NODE_PADDING_SIZE, print(hybrid_node_coords.shape[0])
+            padding = torch.nn.ZeroPad2d((0, 0, 0, LOCAL_NODE_PADDING_SIZE - n_hybrid_node))
+            node_inputs = padding(node_inputs)
 
-        local_node_padding_mask = torch.zeros((1, 1, n_local_node), dtype=torch.int16).to(self.device)
-
-        if pad:
-            local_node_padding = torch.ones((1, 1, LOCAL_NODE_PADDING_SIZE - n_local_node), dtype=torch.int16).to(
-                self.device)
-            local_node_padding_mask = torch.cat((local_node_padding_mask, local_node_padding), dim=-1)
-
-        current_local_index = torch.tensor([current_local_index]).reshape(1, 1, 1).to(self.device)
-
-        local_edge_mask = torch.tensor(local_edge_mask).unsqueeze(0).to(self.device)
+        hybrid_node_padding_mask = torch.zeros((1, 1, n_hybrid_node), dtype=torch.int16).to(self.device)
 
         if pad:
-            padding = torch.nn.ConstantPad2d((0, LOCAL_NODE_PADDING_SIZE - n_local_node, 0, LOCAL_NODE_PADDING_SIZE - n_local_node), 1)
-            local_edge_mask = padding(local_edge_mask)
+            local_node_padding = torch.ones((1, 1, LOCAL_NODE_PADDING_SIZE - n_hybrid_node), dtype=torch.int16).to(self.device)
+            hybrid_node_padding_mask = torch.cat((hybrid_node_padding_mask, local_node_padding), dim=-1)
+
+        current_hybrid_index = torch.tensor([current_hybrid_index]).reshape(1, 1, 1).to(self.device)
+
+        hybrid_edge_mask = torch.tensor(hybrid_edge_mask).unsqueeze(0).to(self.device)
+
+        if pad:
+            padding = torch.nn.ConstantPad2d((0, LOCAL_NODE_PADDING_SIZE - n_hybrid_node, 0, LOCAL_NODE_PADDING_SIZE - n_hybrid_node), 1)
+            hybrid_edge_mask = padding(hybrid_edge_mask)
 
         current_local_edge = torch.tensor(current_local_edge).unsqueeze(0).to(self.device)
         k_size = current_local_edge.size()[-1]
@@ -158,57 +209,102 @@ class Agent:
         current_local_edge = current_local_edge.unsqueeze(-1)
         local_edge_padding_mask = local_edge_padding_mask.unsqueeze(0)
 
-        # local_edge_padding_mask = torch.zeros((1, 1, k_size), dtype=torch.int16).to(self.device)
-        # # current_in_edge = np.argwhere(current_local_edge == self.current_local_index)[0][0]
-        # # local_edge_padding_mask[0, 0, current_in_edge] = 1  # do not allow stay at the same node
-        # if pad:
-        #     padding = torch.nn.ConstantPad1d((0, LOCAL_K_PADDING_SIZE - k_size), 1)
-        #     local_edge_padding_mask = padding(local_edge_padding_mask)
-
-        return [local_node_inputs, local_node_padding_mask, local_edge_mask, current_local_index, current_local_edge, local_edge_padding_mask]
+        return [node_inputs, hybrid_node_padding_mask, hybrid_edge_mask, current_hybrid_index, current_local_edge, local_edge_padding_mask]
 
     def get_state(self):
-        true_node_coords = self.true_node_coords
-        true_node_safe_utility = self.safe_utility.reshape(-1, 1)
-        true_node_uncovered_safe_utility = self.uncovered_safe_utility.reshape(-1, 1)
-        true_node_guidepost = self.guidepost.reshape(-1, 1)
-        true_node_occupancy = self.occupancy.reshape(-1, 1)
-        true_node_signal = self.signal.reshape(-1, 1)
-        state_edge_mask = self.true_adjacent_matrix
-        n_true_node = true_node_coords.shape[0]
+        n_true_node = len(self.true_node_coords)
         n_padding = n_true_node - self.local_node_coords.shape[0]
+        safe_utility_padded = np.pad(self.safe_utility, (0, n_padding), mode='constant', constant_values=-30)
+        uncovered_safe_utility_padded = np.pad(self.uncovered_safe_utility, (0, n_padding), mode='constant', constant_values=-30)
+        guidepost_padded = np.pad(self.guidepost, (0, n_padding), mode='constant', constant_values=0)
+        signal_padded = np.pad(self.signal, (0, n_padding), mode='constant', constant_values=0)
+        occupancy_padded = np.pad(self.occupancy, (0, n_padding), mode='constant', constant_values=0)
 
-        true_node_safe_utility = np.pad(true_node_safe_utility, ((0, n_padding), (0, 0)), mode='constant', constant_values=-30)
-        true_node_uncovered_safe_utility = np.pad(true_node_uncovered_safe_utility, ((0, n_padding), (0, 0)), mode='constant', constant_values=-30)
-        true_node_guidepost = np.pad(true_node_guidepost, ((0, n_padding), (0, 0)), mode='constant', constant_values=0)
-        true_node_occupancy = np.pad(true_node_occupancy, ((0, n_padding), (0, 0)), mode='constant', constant_values=0)
-        true_node_signal = np.pad(true_node_signal, ((0, n_padding), (0, 0)), mode='constant', constant_values=0)
+        true_hybrid_node_coords = []
+        true_hybrid_node_safe_utility = []
+        true_hybrid_node_uncovered_safe_utility = []
+        true_hybrid_node_guidepost = []
+        true_hybrid_node_signal = []
+        true_hybrid_node_occupancy = []
+        true_hybrid_node_clique_center = []
+        for i, coords in enumerate(self.true_node_coords):
+            if self.true_node_type[i] == 0:  # keep node
+                true_hybrid_node_coords.append(coords)
+                true_hybrid_node_safe_utility.append(safe_utility_padded[i])
+                true_hybrid_node_uncovered_safe_utility.append(uncovered_safe_utility_padded[i])
+                true_hybrid_node_guidepost.append(guidepost_padded[i])
+                true_hybrid_node_signal.append(signal_padded[i])
+                true_hybrid_node_occupancy.append(occupancy_padded[i])
+                true_hybrid_node_clique_center.append(0)
+            elif self.true_node_type[i] == 1:  # clique center
+                clique_index = next(j for j, clique in enumerate(self.true_cliques) if i in clique)
+                safe_utility_clique = safe_utility_padded[self.true_cliques[clique_index]].max()
+                uncovered_safe_utility_clique = uncovered_safe_utility_padded[self.true_cliques[clique_index]].max()
+                guidepost_clique = guidepost_padded[self.true_cliques[clique_index]].any()
+                signal_clique = signal_padded[self.true_cliques[clique_index]].all()
+                occupancy_clique = occupancy_padded[self.true_cliques[clique_index]].any()  # always 0
+                true_hybrid_node_coords.append(coords)
+                true_hybrid_node_safe_utility.append(safe_utility_clique)
+                true_hybrid_node_uncovered_safe_utility.append(uncovered_safe_utility_clique)
+                true_hybrid_node_guidepost.append(guidepost_clique)
+                true_hybrid_node_signal.append(signal_clique)
+                true_hybrid_node_occupancy.append(occupancy_clique)
+                true_hybrid_node_clique_center.append(1)
+            else:  # remove non-robot-neighbor non-clique-center nodes
+                pass
 
-        current_node_coords = true_node_coords[self.current_local_index]
-        true_node_coords = np.concatenate((true_node_coords[:, 0].reshape(-1, 1) - current_node_coords[0],
-                                           true_node_coords[:, 1].reshape(-1, 1) - current_node_coords[1]),
-                                          axis=-1) / LOCAL_MAP_SIZE
-        true_node_safe_utility = true_node_safe_utility / 30
-        true_node_uncovered_safe_utility = true_node_uncovered_safe_utility / 30
-        state_node_inputs = np.concatenate((true_node_coords, true_node_safe_utility, true_node_uncovered_safe_utility,
-                                            true_node_guidepost, true_node_signal, true_node_occupancy), axis=1)
+        self.true_hybrid_node_coords = np.array(true_hybrid_node_coords).reshape(-1, 2)
+        true_hybrid_node_coords = self.true_hybrid_node_coords
+        true_hybrid_node_safe_utility = np.array(true_hybrid_node_safe_utility).reshape(-1, 1)
+        true_hybrid_node_uncovered_safe_utility = np.array(true_hybrid_node_uncovered_safe_utility).reshape(-1, 1)
+        true_hybrid_node_guidepost = np.array(true_hybrid_node_guidepost).reshape(-1, 1)
+        true_hybrid_node_signal = np.array(true_hybrid_node_signal).reshape(-1, 1)
+        true_hybrid_node_occupancy = np.array(true_hybrid_node_occupancy).reshape(-1, 1)
+        true_hybrid_node_clique_center = np.array(true_hybrid_node_clique_center).reshape(-1, 1)
+
+        remove_indices = np.argwhere(np.array(self.true_node_type) == -1).flatten()
+        true_hybrid_edge_mask = np.delete(self.true_adjacent_matrix, remove_indices, axis=0)
+        true_hybrid_edge_mask = np.delete(true_hybrid_edge_mask, remove_indices, axis=1)
+        self.true_hybrid_adjacent_matrix = true_hybrid_edge_mask
+
+        current_node_coords = self.true_node_coords[self.current_local_index]
+        current_true_hybrid_index = np.argwhere(np.all(true_hybrid_node_coords == current_node_coords, axis=1)).flatten()[0]
+        self.current_true_hybrid_index = current_true_hybrid_index
+
+        current_true_local_edge = np.argwhere(true_hybrid_edge_mask[current_true_hybrid_index] == 0).flatten()
+        n_true_hybrid_node = true_hybrid_node_coords.shape[0]
+
+        true_hybrid_node_coords = np.concatenate((true_hybrid_node_coords[:, 0].reshape(-1, 1) - current_node_coords[0],
+                                                 true_hybrid_node_coords[:, 1].reshape(-1, 1) - current_node_coords[1]),
+                                                 axis=-1) / LOCAL_MAP_SIZE
+        true_hybrid_node_safe_utility = true_hybrid_node_safe_utility / 30
+        true_hybrid_node_uncovered_safe_utility = true_hybrid_node_uncovered_safe_utility / 30
+        state_node_inputs = np.concatenate((true_hybrid_node_coords, true_hybrid_node_safe_utility,
+                                            true_hybrid_node_uncovered_safe_utility,true_hybrid_node_guidepost,
+                                            true_hybrid_node_signal, true_hybrid_node_occupancy, true_hybrid_node_clique_center), axis=1)
         state_node_inputs = torch.FloatTensor(state_node_inputs).unsqueeze(0).to(self.device)
 
-        padding = torch.nn.ZeroPad2d((0, 0, 0, LOCAL_NODE_PADDING_SIZE - n_true_node))
+        padding = torch.nn.ZeroPad2d((0, 0, 0, LOCAL_NODE_PADDING_SIZE - n_true_hybrid_node))
         state_node_inputs = padding(state_node_inputs)
 
-        state_node_padding_mask = torch.zeros((1, 1, n_true_node), dtype=torch.int16).to(self.device)
-        global_node_padding = torch.ones((1, 1, LOCAL_NODE_PADDING_SIZE - n_true_node), dtype=torch.int16).to(
-            self.device)
+        state_node_padding_mask = torch.zeros((1, 1, n_true_hybrid_node), dtype=torch.int16).to(self.device)
+        global_node_padding = torch.ones((1, 1, LOCAL_NODE_PADDING_SIZE - n_true_hybrid_node), dtype=torch.int16).to(self.device)
         state_node_padding_mask = torch.cat((state_node_padding_mask, global_node_padding), dim=-1)
 
-        state_edge_mask = torch.tensor(state_edge_mask).unsqueeze(0).to(self.device)
+        current_true_hybrid_index = torch.tensor([current_true_hybrid_index]).reshape(1, 1, 1).to(self.device)
 
-        padding = torch.nn.ConstantPad2d(
-            (0, LOCAL_NODE_PADDING_SIZE - n_true_node, 0, LOCAL_NODE_PADDING_SIZE - n_true_node), 1)
+        state_edge_mask = torch.tensor(true_hybrid_edge_mask).unsqueeze(0).to(self.device)
+
+        padding = torch.nn.ConstantPad2d((0, LOCAL_NODE_PADDING_SIZE - n_true_hybrid_node, 0,
+                                          LOCAL_NODE_PADDING_SIZE - n_true_hybrid_node), 1)
         state_edge_mask = padding(state_edge_mask)
 
-        return [state_node_inputs, state_node_padding_mask, state_edge_mask]
+        current_true_local_edge = torch.tensor(current_true_local_edge).unsqueeze(0).to(self.device)
+        k_size = current_true_local_edge.size()[-1]
+        padding = torch.nn.ConstantPad1d((0, LOCAL_K_PADDING_SIZE - k_size), 0)
+        state_current_local_edge = padding(current_true_local_edge).unsqueeze(-1)
+
+        return [state_node_inputs, state_node_padding_mask, state_edge_mask, current_true_hybrid_index, state_current_local_edge]
 
     def select_next_waypoint(self, local_observation, greedy=False):
         _, _, _, _, current_local_edge, _ = local_observation
@@ -221,7 +317,7 @@ class Agent:
             action_index = torch.multinomial(logp.exp(), 1).long().squeeze(1)
 
         next_node_index = current_local_edge[0, action_index.item(), 0].item()
-        next_position = self.local_node_coords[next_node_index]
+        next_position = self.hybrid_node_coords[next_node_index]
 
         return next_position, next_node_index, action_index
 
@@ -350,18 +446,25 @@ class Agent:
         self.episode_buffer['next_all_agent_next_indices'] += copy.deepcopy(self.episode_buffer['all_agent_next_indices'])[-1:]
 
     def save_state(self, state):
-        global_node_inputs, global_node_padding_mask, global_edge_mask = state
-        self.add(self.episode_buffer, 'state_node_inputs', global_node_inputs)
-        self.add(self.episode_buffer, 'state_node_padding_mask', global_node_padding_mask.bool())
-        self.add(self.episode_buffer, 'state_edge_mask', global_edge_mask.bool())
+        state_node_inputs, state_node_padding_mask, state_edge_mask, current_true_hybrid_index, state_current_local_edge = state
+
+        self.add(self.episode_buffer, 'state_node_inputs', state_node_inputs)
+        self.add(self.episode_buffer, 'state_node_padding_mask', state_node_padding_mask.bool())
+        self.add(self.episode_buffer, 'state_edge_mask', state_edge_mask.bool())
+        self.add(self.episode_buffer, 'current_state_index', current_true_hybrid_index)
+        self.add(self.episode_buffer, 'current_state_edge', state_current_local_edge)
 
     def save_next_state(self, state):
         self.episode_buffer['next_state_node_inputs'] = copy.deepcopy(self.episode_buffer['state_node_inputs'])[1:]
         self.episode_buffer['next_state_node_padding_mask'] = copy.deepcopy(self.episode_buffer['state_node_padding_mask'])[1:]
         self.episode_buffer['next_state_edge_mask'] = copy.deepcopy(self.episode_buffer['state_edge_mask'])[1:]
+        self.episode_buffer['next_current_state_index'] = copy.deepcopy(self.episode_buffer['current_state_index'])[1:]
+        self.episode_buffer['next_current_state_edge'] = copy.deepcopy(self.episode_buffer['current_state_edge'])[1:]
 
-        global_node_inputs, global_node_padding_mask, global_edge_mask = state
-        self.episode_buffer['next_state_node_inputs'] += global_node_inputs
-        self.episode_buffer['next_state_node_padding_mask'] += global_node_padding_mask.bool()
-        self.episode_buffer['next_state_edge_mask'] += global_edge_mask.bool()
+        state_node_inputs, state_node_padding_mask, state_edge_mask, current_true_hybrid_index, state_current_local_edge = state
+        self.episode_buffer['next_state_node_inputs'] += state_node_inputs
+        self.episode_buffer['next_state_node_padding_mask'] += state_node_padding_mask.bool()
+        self.episode_buffer['next_state_edge_mask'] += state_edge_mask.bool()
+        self.episode_buffer['next_current_state_index'] += current_true_hybrid_index
+        self.episode_buffer['next_current_state_edge'] += state_current_local_edge
 

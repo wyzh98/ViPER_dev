@@ -138,7 +138,7 @@ class NodeManager:
         neighbor_indices = np.argwhere(adjacent_matrix[current_index] == 0).reshape(-1)
         traversable_indices = np.argwhere(traversable_matrix[current_index] == 0).reshape(-1)
 
-        occupancy = np.zeros((n_nodes, 1))
+        occupancy = np.zeros(n_nodes)
         for location in robot_locations:
             location_in_graph = self.local_nodes_dict.find((location[0], location[1])).data.coords
             index = np.argwhere(local_node_coords_to_check == location_in_graph[0] + location_in_graph[1] * 1j)[0][0]
@@ -171,41 +171,44 @@ class NodeManager:
 
         return ground_truth_coords, ground_truth_adjacent_matrix
 
-    def get_topological_node_graph(self, robot_location, adjacent_matrix, all_node_coords, max_hop=1):
+    def get_topological_node_graph(self, adjacent_matrix, all_node_coords):
         all_node_coords = all_node_coords.reshape(-1, 2)
 
         cliques = self.find_cliques(all_node_coords, 1 - adjacent_matrix)
         center_indices = self.calc_clique_center(all_node_coords, cliques)
         topological_node_coords = all_node_coords[center_indices]
 
-        G = nx.from_numpy_array(1 - adjacent_matrix)
-        topological_adjacent_matrix = np.ones((len(center_indices), len(center_indices)))
-        np.fill_diagonal(topological_adjacent_matrix, 0)
-        center_combs = list(itertools.combinations(range(len(center_indices)), r=2))
+        return cliques, topological_node_coords
 
-        for center1, center2 in center_combs:
-            path = nx.shortest_path(G, center_indices[center1], center_indices[center2])  # TODO: distance-based path
-            for p in path[1: -1]:  # check if in the same clique
-                if p in cliques[center1] or p in cliques[center2]:
-                    path.remove(p)
-            if len(path) - 2 < max_hop:
-                topological_adjacent_matrix[center1, center2] = 0
-                topological_adjacent_matrix[center2, center1] = 0
+    def get_hybrid_node_graph(self, robot_locations, all_node_coords, topological_node_coords, cliques):
+        robot_neighbor_indices = set()
+        all_node_coords_to_check = all_node_coords[:, 0] + all_node_coords[:, 1] * 1j
+        topological_node_coords_to_check = topological_node_coords[:, 0] + topological_node_coords[:, 1] * 1j
+        for loc in robot_locations:
+            robot_neighbor_indices.add(np.argwhere(all_node_coords_to_check == loc[0] + loc[1] * 1j)[0][0])
+            node = self.local_nodes_dict.find((loc[0], loc[1])).data
+            for neighbor in node.neighbor_list:
+                robot_neighbor_indices.add(np.argwhere(all_node_coords_to_check == neighbor[0] + neighbor[1] * 1j)[0][0])
 
-        topological_adjacent_matrix_padded = np.ones_like(adjacent_matrix).astype(int)
-        indices = np.where(topological_adjacent_matrix == 0)
-        new_indices = [np.array(center_indices)[i] for i in indices]
-        topological_adjacent_matrix_padded[new_indices[0], new_indices[1]] = 0
+        local_node_indices = set()
+        for clique in cliques:
+            if set(clique) & robot_neighbor_indices:
+                local_node_indices.update(clique)
 
-        current_index = np.where((all_node_coords == robot_location).all(1))[0][0]
-        current_topological_index = next((index for index, clique in enumerate(cliques) if current_index in clique), -1)
-        neighbor_topological_indices = np.argwhere(topological_adjacent_matrix[current_topological_index] == 0).reshape(-1)
+        all_node_type = []  # 0: local, 1: clique center, -1: non-center (remove)
+        for idx, coords in enumerate(all_node_coords):
+            if idx in local_node_indices:
+                all_node_type.append(0)
+            else:
+                if coords[0] + coords[1] * 1j in topological_node_coords_to_check:
+                    all_node_type.append(1)
+                else:
+                    all_node_type.append(-1)
 
-        return (topological_node_coords, topological_adjacent_matrix, topological_adjacent_matrix_padded, cliques,
-                current_topological_index, neighbor_topological_indices)
+        return all_node_type
 
     @staticmethod
-    def find_cliques(all_node_coords, adjacent_matrix, min_clique_node=4):
+    def find_cliques(all_node_coords, adjacent_matrix, min_clique_node=1):
         cardinals = np.array([[-1, 0], [1, 0], [0, 1], [0, -1], [-1, -1], [-1, 1], [1, -1], [1, 1]]) * NODE_RESOLUTION
         G = nx.from_numpy_array(adjacent_matrix)
         cliques = []

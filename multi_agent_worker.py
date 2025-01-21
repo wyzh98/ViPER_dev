@@ -34,7 +34,7 @@ class Multi_agent_worker:
             robot.update_safe_graph(self.env.safe_info, self.env.uncovered_safe_frontiers)
         for robot in self.robot_list:
             robot.update_planning_state(self.env.robot_locations)
-            robot.update_underlying_state()
+            robot.update_underlying_state(self.env.robot_locations)
 
         safe_increase_log = []
         max_travel_dist = 0
@@ -57,7 +57,7 @@ class Multi_agent_worker:
 
             selected_locations = self.solve_path_confict(selected_locations, dist_list)
 
-            curr_node_indices = np.array([robot.current_local_index for robot in self.robot_list])
+            curr_node_indices = np.array([robot.current_true_hybrid_index for robot in self.robot_list])
 
             self.env.step(selected_locations, i, self.robot_list)
 
@@ -81,7 +81,7 @@ class Multi_agent_worker:
                 robot.save_reward(reward)
                 robot.save_done(done)
                 robot.update_planning_state(self.env.robot_locations)
-                robot.update_underlying_state()
+                robot.update_underlying_state(self.env.robot_locations)
 
             if done:
                 break
@@ -140,5 +140,5 @@ if __name__ == '__main__':
     policynet = PolicyNet(NODE_INPUT_DIM, EMBEDDING_DIM)
     # ckp = torch.load('model/viper/checkpoint.pth', map_location='cpu')
     # policynet.load_state_dict(ckp['policy_model'])
-    worker = Multi_agent_worker(0, policynet, 0, 'cpu', False)
+    worker = Multi_agent_worker(0, policynet, 0, 'cpu', True)
     worker.run_episode()
