@@ -213,45 +213,35 @@ class PolicyNet(nn.Module):
         # decoder
         self.graph_decoder = Decoder(embedding_dim=embedding_dim, n_head=4, n_layer=1)
         self.current_embedding = nn.Linear(embedding_dim * 2, embedding_dim)
+        self.fuse_embedding = nn.Linear(embedding_dim * 2, embedding_dim)
 
         # pointer
         self.pointer = SingleHeadAttention(embedding_dim)
 
-    def encode_graph(self, node_inputs, node_padding_mask, edge_mask):
-        node_feature = self.initial_embedding(node_inputs)
-        enhanced_node_feature = self.graph_encoder(src=node_feature,
-                                                   key_padding_mask=node_padding_mask,
-                                                   attn_mask=edge_mask)
+    def encode_graph(self, topo_node_inputs, node_padding_mask, edge_mask, node_inputs):
+        topo_node_feature = self.initial_embedding(topo_node_inputs)
+        enhanced_topo_node_feature = self.graph_encoder(src=topo_node_feature,
+                                                        key_padding_mask=node_padding_mask,
+                                                        attn_mask=edge_mask)
+        neighbor_node_feature = self.initial_embedding(node_inputs)
+        return enhanced_topo_node_feature, neighbor_node_feature
 
-        return enhanced_node_feature
+    def output_policy(self, enhanced_topo_node_feature, neighbor_node_feature, current_topo_index, current_index_in_edge, edge_padding_mask):
+        embedding_dim = enhanced_topo_node_feature.size()[2]
+        current_topo_node_feature = torch.gather(enhanced_topo_node_feature, 1, current_topo_index.repeat(1, 1, embedding_dim))
+        current_local_node_feature = torch.gather(neighbor_node_feature, 1, current_index_in_edge.repeat(1, 1, embedding_dim))
+        current_node_feature = self.current_embedding(torch.cat((current_topo_node_feature, current_local_node_feature), dim=-1))
 
-    def decode_state(self, enhanced_node_feature, current_index, node_padding_mask):
-        embedding_dim = enhanced_node_feature.size()[2]
-        current_node_feature = torch.gather(enhanced_node_feature, 1,
-                                            current_index.repeat(1, 1, embedding_dim))
-        enhanced_current_node_feature, _ = self.graph_decoder(current_node_feature,
-                                                              enhanced_node_feature,
-                                                              node_padding_mask)
-
-        return current_node_feature, enhanced_current_node_feature
-
-    def output_policy(self, current_node_feature, enhanced_current_node_feature, enhanced_node_feature, current_edge, edge_padding_mask):
-        embedding_dim = enhanced_node_feature.size()[2]
-        current_state_feature = self.current_embedding(torch.cat((enhanced_current_node_feature, current_node_feature), dim=-1))
-
-        neighboring_feature = torch.gather(enhanced_node_feature, 1, current_edge.repeat(1, 1, embedding_dim))
-
-        logp = self.pointer(current_state_feature, neighboring_feature, edge_padding_mask)
+        enhanced_current_node_feature, _ = self.graph_decoder(current_node_feature, neighbor_node_feature, edge_padding_mask)
+        current_feature = self.fuse_embedding(torch.cat((enhanced_current_node_feature, current_node_feature), dim=-1))
+        logp = self.pointer(current_feature, neighbor_node_feature, edge_padding_mask)
         logp = logp.squeeze(1)
 
         return logp
 
-    def forward(self, node_inputs, node_padding_mask, edge_mask, current_index, current_edge, edge_padding_mask):
-        enhanced_node_feature = self.encode_graph(node_inputs, node_padding_mask, edge_mask)
-        current_node_feature, enhanced_current_node_feature = self.decode_state(enhanced_node_feature, current_index, node_padding_mask)
-        logp = self.output_policy(current_node_feature, enhanced_current_node_feature, enhanced_node_feature,
-                                  current_edge, edge_padding_mask)
-
+    def forward(self, topo_node_inputs, topo_node_padding_mask, topo_edge_mask, current_topo_index, node_inputs, current_index_in_edge, edge_padding_mask):
+        enhanced_topo_node_feature, neighbor_node_feature = self.encode_graph(topo_node_inputs, topo_node_padding_mask, topo_edge_mask, node_inputs)
+        logp = self.output_policy(enhanced_topo_node_feature, neighbor_node_feature, current_topo_index, current_index_in_edge, edge_padding_mask)
         return logp
 
 
@@ -266,60 +256,36 @@ class QNet(nn.Module):
         # decoder
         self.graph_decoder = Decoder(embedding_dim=embedding_dim, n_head=4, n_layer=1)
         self.agent_decoder = Decoder(embedding_dim=embedding_dim, n_head=4, n_layer=1)
-        self.all_agent_embedding = nn.Linear(embedding_dim * 2, embedding_dim)
+        self.current_embedding = nn.Linear(embedding_dim * 2, embedding_dim)
 
-        self.q_values_layer = nn.Linear(embedding_dim * 4, 1)
+        self.q_values_layer = nn.Linear(embedding_dim * 3, 1)
 
-    def encode_graph(self, node_inputs, node_padding_mask, edge_mask):
-        node_feature = self.initial_embedding(node_inputs)
-        enhanced_node_feature = self.graph_encoder(src=node_feature,
-                                                   key_padding_mask=node_padding_mask,
-                                                   attn_mask=edge_mask)
+    def encode_graph(self, topo_node_inputs, node_padding_mask, edge_mask, node_inputs):
+        topo_node_feature = self.initial_embedding(topo_node_inputs)
+        enhanced_topo_node_feature = self.graph_encoder(src=topo_node_feature,
+                                                        key_padding_mask=node_padding_mask,
+                                                        attn_mask=edge_mask)
+        neighbor_node_feature = self.initial_embedding(node_inputs)
+        return enhanced_topo_node_feature, neighbor_node_feature
 
-        return enhanced_node_feature
+    def output_q(self, enhanced_topo_node_feature, neighbor_node_feature, current_topo_index, current_index_in_edge, edge_padding_mask):
+        embedding_dim = enhanced_topo_node_feature.size()[2]
+        current_topo_node_feature = torch.gather(enhanced_topo_node_feature, 1, current_topo_index.repeat(1, 1, embedding_dim))
+        current_local_node_feature = torch.gather(neighbor_node_feature, 1, current_index_in_edge.repeat(1, 1, embedding_dim))
+        current_node_feature = self.current_embedding(torch.cat((current_topo_node_feature, current_local_node_feature), dim=-1))
 
-    def decode_state(self, enhanced_node_feature, current_index, node_padding_mask):
-        embedding_dim = enhanced_node_feature.size()[2]
-        current_node_feature = torch.gather(enhanced_node_feature, 1, current_index.repeat(1, 1, embedding_dim))
-        enhanced_current_node_feature, _ = self.graph_decoder(current_node_feature,
-                                                              enhanced_node_feature,
-                                                              node_padding_mask)
+        enhanced_current_node_feature, _ = self.graph_decoder(current_node_feature, neighbor_node_feature, edge_padding_mask)
+        k_size = neighbor_node_feature.size()[1]
 
-        return current_node_feature, enhanced_current_node_feature
-
-    def output_q(self, current_node_feature, enhanced_current_node_feature, enhanced_node_feature, current_edge,
-                 current_index, all_agent_indices, all_agent_next_indices):
-        embedding_dim = enhanced_node_feature.size()[2]
-        k_size = current_edge.size()[1]
-        current_state_feature = current_node_feature
-        enhanced_current_state_feature = enhanced_current_node_feature
-
-        neighboring_feature = torch.gather(enhanced_node_feature, 1, current_edge.repeat(1, 1, embedding_dim))
-
-        all_agent_node_feature = torch.gather(enhanced_node_feature, 1, all_agent_indices.repeat(1, 1, embedding_dim))
-        all_agent_selected_neighboring_feature = torch.gather(enhanced_node_feature, 1,
-                                                              all_agent_next_indices.repeat(1, 1, embedding_dim))
-
-        all_agent_action_features = torch.cat((all_agent_node_feature, all_agent_selected_neighboring_feature), dim=-1)
-        all_agent_action_features = self.all_agent_embedding(all_agent_action_features)
-
-        agent_mask = all_agent_indices == current_index
-
-        state_action_feature, _ = self.agent_decoder(current_state_feature, all_agent_action_features, agent_mask)
-
-        action_features = torch.cat((current_state_feature.repeat(1, k_size, 1),
-                                     enhanced_current_state_feature.repeat(1, k_size, 1),
-                                     state_action_feature.repeat(1, k_size, 1),
-                                     neighboring_feature), dim=-1)
+        action_features = torch.cat((current_node_feature.repeat(1, k_size, 1),
+                                     enhanced_current_node_feature.repeat(1, k_size, 1),
+                                     neighbor_node_feature), dim=-1)
 
         q_values = self.q_values_layer(action_features)
         return q_values
 
-    def forward(self, node_inputs, node_padding_mask, edge_mask, current_index, current_edge,
-                all_agent_indices, all_agent_next_indices):
-        enhanced_node_feature = self.encode_graph(node_inputs, node_padding_mask, edge_mask)
-        current_node_feature, enhanced_current_node_feature = self.decode_state(enhanced_node_feature, current_index, node_padding_mask)
-        q_values = self.output_q(current_node_feature, enhanced_current_node_feature, enhanced_node_feature,
-                                 current_edge, current_index, all_agent_indices, all_agent_next_indices)
+    def forward(self, topo_node_inputs, topo_node_padding_mask, topo_edge_mask, current_topo_index, node_inputs, current_index_in_edge, edge_padding_mask):
+        enhanced_topo_node_feature, neighbor_node_feature = self.encode_graph(topo_node_inputs, topo_node_padding_mask, topo_edge_mask, node_inputs)
+        q_values = self.output_q(enhanced_topo_node_feature, neighbor_node_feature, current_topo_index, current_index_in_edge, edge_padding_mask)
 
         return q_values

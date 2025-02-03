@@ -1,4 +1,3 @@
-import matplotlib.pyplot as plt
 from copy import deepcopy
 from env import Env
 from agent import Agent
@@ -57,7 +56,7 @@ class Multi_agent_worker:
 
             selected_locations = self.solve_path_confict(selected_locations, dist_list)
 
-            curr_node_indices = np.array([robot.current_local_index for robot in self.robot_list])
+            # curr_node_indices = np.array([robot.current_local_index for robot in self.robot_list])
 
             self.env.step(selected_locations, i, self.robot_list)
 
@@ -77,7 +76,7 @@ class Multi_agent_worker:
                 safe_increase_log.append(0)
 
             for robot, reward in zip(self.robot_list, indiv_reward):
-                robot.save_all_indices(np.array(curr_node_indices))
+                # robot.save_all_indices(np.array(curr_node_indices))
                 robot.save_reward(reward)
                 robot.save_done(done)
                 robot.update_planning_state(self.env.robot_locations)
@@ -98,7 +97,7 @@ class Multi_agent_worker:
         for robot in self.robot_list:
             observation = robot.get_observation()
             state = robot.get_state()
-            robot.save_next_observations(observation, next_node_index_list)
+            robot.save_next_observations(observation)
             robot.save_next_state(state)
 
             for k in robot.episode_buffer:
@@ -140,5 +139,5 @@ if __name__ == '__main__':
     policynet = PolicyNet(NODE_INPUT_DIM, EMBEDDING_DIM)
     # ckp = torch.load('model/viper/checkpoint.pth', map_location='cpu')
     # policynet.load_state_dict(ckp['policy_model'])
-    worker = Multi_agent_worker(0, policynet, 0, 'cpu', False)
+    worker = Multi_agent_worker(0, policynet, 0, 'cpu', True)
     worker.run_episode()

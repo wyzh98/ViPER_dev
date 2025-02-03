@@ -155,38 +155,39 @@ def main():
                     # stack batch data to tensors
                     prep = lambda x: torch.stack(x).to(device)
                     node_inputs = prep(rollouts['node_inputs'])
-                    node_padding_mask = prep(rollouts['node_padding_mask'])
-                    edge_mask = prep(rollouts['edge_mask'])
-                    current_index = prep(rollouts['current_index'])
-                    current_edge = prep(rollouts['current_edge'])
+                    current_index_in_edge = prep(rollouts['current_index_in_edge'])
                     edge_padding_mask = prep(rollouts['edge_padding_mask'])
+                    topo_node_inputs = prep(rollouts['topo_node_inputs'])
+                    topo_node_padding_mask = prep(rollouts['topo_node_padding_mask'])
+                    topo_edge_mask = prep(rollouts['topo_edge_mask'])
+                    current_topo_index = prep(rollouts['current_topo_index'])
                     action = prep(rollouts['action'])
                     reward = prep(rollouts['reward'])
                     done = prep(rollouts['done'])
-                    all_agent_indices = prep(rollouts['all_agent_indices'])
                     next_node_inputs = prep(rollouts['next_node_inputs'])
-                    next_node_padding_mask = prep(rollouts['next_node_padding_mask'])
-                    next_edge_mask = prep(rollouts['next_edge_mask'])
-                    next_current_index = prep(rollouts['next_current_index'])
-                    next_current_edge = prep(rollouts['next_current_edge'])
+                    next_current_index_in_edge = prep(rollouts['next_current_index_in_edge'])
                     next_edge_padding_mask = prep(rollouts['next_edge_padding_mask'])
-                    all_agent_next_indices = prep(rollouts['all_agent_next_indices'])
-                    next_all_agent_next_indices = prep(rollouts['next_all_agent_next_indices'])
-                    state_node_inputs = prep(rollouts['state_node_inputs'])
-                    state_node_padding_mask = prep(rollouts['state_node_padding_mask'])
-                    state_edge_mask = prep(rollouts['state_edge_mask'])
-                    next_state_node_inputs = prep(rollouts['next_state_node_inputs'])
-                    next_state_node_padding_mask = prep(rollouts['next_state_node_padding_mask'])
-                    next_state_edge_mask = prep(rollouts['next_state_edge_mask'])
+                    next_topo_node_inputs = prep(rollouts['next_topo_node_inputs'])
+                    next_topo_node_padding_mask = prep(rollouts['next_topo_node_padding_mask'])
+                    next_topo_edge_mask = prep(rollouts['next_topo_edge_mask'])
+                    next_current_topo_index = prep(rollouts['next_current_topo_index'])
+                    state_topo_node_inputs = prep(rollouts['state_topo_node_inputs'])
+                    state_current_topo_index = prep(rollouts['state_current_topo_index'])
+                    state_topo_node_padding_mask = prep(rollouts['state_topo_node_padding_mask'])
+                    state_topo_edge_mask = prep(rollouts['state_topo_edge_mask'])
+                    next_state_topo_node_inputs = prep(rollouts['next_state_topo_node_inputs'])
+                    next_state_current_topo_index = prep(rollouts['next_state_current_topo_index'])
+                    next_state_topo_node_padding_mask = prep(rollouts['next_state_topo_node_padding_mask'])
+                    next_state_topo_edge_mask = prep(rollouts['next_state_topo_edge_mask'])
 
-                    observation = [node_inputs, node_padding_mask, edge_mask, current_index,
-                                   current_edge, edge_padding_mask]
-                    next_observation = [next_node_inputs, next_node_padding_mask, next_edge_mask,
-                                        next_current_index, next_current_edge, next_edge_padding_mask]
-                    state = [state_node_inputs, state_node_padding_mask, state_edge_mask, current_index, current_edge,
-                             all_agent_indices, all_agent_next_indices]
-                    next_state = [next_state_node_inputs, next_state_node_padding_mask, next_state_edge_mask, next_current_index,
-                                  next_current_edge, all_agent_next_indices, next_all_agent_next_indices]
+                    observation = [topo_node_inputs, topo_node_padding_mask, topo_edge_mask, current_topo_index,
+                                   node_inputs, current_index_in_edge, edge_padding_mask]
+                    next_observation = [next_topo_node_inputs, next_topo_node_padding_mask, next_topo_edge_mask, next_current_topo_index,
+                                        next_node_inputs, next_current_index_in_edge, next_edge_padding_mask]
+                    state = [state_topo_node_inputs, state_topo_node_padding_mask, state_topo_edge_mask, state_current_topo_index,
+                             node_inputs, current_index_in_edge, edge_padding_mask]
+                    next_state = [next_state_topo_node_inputs, next_state_topo_node_padding_mask, next_state_topo_edge_mask, next_state_current_topo_index,
+                                  next_node_inputs, next_current_index_in_edge, next_edge_padding_mask]
 
                     # SAC
                     with torch.no_grad():

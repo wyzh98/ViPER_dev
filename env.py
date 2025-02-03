@@ -64,6 +64,7 @@ class Env:
         map_index = episode_index % np.size(map_list)
 
         ground_truth = (io.imread(map_dir + '/' + map_list[map_index], 1)).astype(int)  # 127: obstacle, 195: free, 208: start
+        # ground_truth = (io.imread('maps_special/exp2.png', 1)).astype(int)
         ground_truth = block_reduce(ground_truth, 2, np.min)
         robot_cell = np.array(np.nonzero(ground_truth == 208))
         robot_cell = np.array([robot_cell[1, 10], robot_cell[0, 10]])
@@ -210,11 +211,11 @@ class Env:
 
     def plot_env(self, episode, step, ministep, robot_list):
         plt.switch_backend('agg')
-        plt.figure(figsize=(9, 4))
-        plt.subplot(1, 2, 2)
+        plt.figure(figsize=(11, 4))
+        plt.subplot(1, 3, 2)
         plt.imshow(self.robot_belief, cmap='gray', vmin=0)
         plt.axis('off')
-        color_list = ['r', 'b', 'g', 'y', 'm', 'c', 'k', 'w', (1,0.5,0.5), (0.2,0.5,0.7)]
+        color_list = ['r', 'b', 'g', 'y', 'm', 'c', 'k', (1,0.5,0.5), (1,0.5,0.5), (0.5,0.5,1)]
         cmap_list = ['Reds', 'Blues', 'Greens', 'YlOrBr', 'Purples', 'PuBuGn', 'Greys', 'Greys', 'RdPu', 'BuPu', 'GnBu']
         robot = robot_list[0]
         nodes = get_cell_position_from_coords(robot.local_node_coords, robot.safe_zone_info)
@@ -226,8 +227,9 @@ class Env:
         #         if robot.local_adjacent_matrix[i, j] == 0:
         #             plt.plot([nodes[i, 0], nodes[j, 0]], [nodes[i, 1], nodes[j, 1]], c=(0.988, 0.557, 0.675), linewidth=1.5, zorder=1)
 
-        plt.subplot(1, 2, 1)
+        plt.subplot(1, 3, 1)
         plt.imshow(self.robot_belief, cmap='gray')
+        plt.axis('off')
 
         self.classify_safe_frontier(self.robot_locations)
         covered_safe_frontier_cells = get_cell_position_from_coords(self.covered_safe_frontiers, self.safe_info).reshape(-1, 2)
@@ -258,8 +260,34 @@ class Env:
             lc.set_alpha(1.0)
             plt.gca().add_collection(lc)
 
-
+        plt.subplot(1, 3, 3)
+        plt.imshow(self.robot_belief, cmap='gray')
         plt.axis('off')
+        robot = robot_list[0]
+
+        for i, clique in enumerate(robot.clique_indices):
+            clique_coords = get_cell_position_from_coords(robot.local_node_coords[clique], robot.safe_zone_info).reshape(-1, 2)
+            c = color_list[i % len(color_list)]
+            plt.scatter(clique_coords[:, 0], clique_coords[:, 1], c=c, s=10, zorder=3)
+
+        topo_nodes = get_cell_position_from_coords(robot.topo_node_coords, robot.safe_zone_info).reshape(-1, 2)
+        for i in range(topo_nodes.shape[0]):
+            for j in range(i + 1, topo_nodes.shape[0]):
+                if robot.topo_adjacent_matrix[i, j] == 0:
+                    plt.plot([topo_nodes[i, 0], topo_nodes[j, 0]], [topo_nodes[i, 1], topo_nodes[j, 1]], c='k', linewidth=2, zorder=4)
+
+        # for i, clique in enumerate(robot.true_clique_indices):
+        #     clique_coords = get_cell_position_from_coords(robot.true_node_coords[clique], robot.safe_zone_info).reshape(-1, 2)
+        #     c = color_list[i % len(color_list)]
+        #     plt.scatter(clique_coords[:, 0], clique_coords[:, 1], c=c, s=10, zorder=3)
+        #
+        # topo_nodes = get_cell_position_from_coords(robot.true_topo_node_coords, robot.safe_zone_info)
+        # if topo_nodes.shape[0] != 0:
+        #     for i in range(topo_nodes.shape[0]):
+        #         for j in range(i + 1, topo_nodes.shape[0]):
+        #             if robot.true_topo_adjacent_matrix[i, j] == 0:
+        #                 plt.plot([topo_nodes[i, 0], topo_nodes[j, 0]], [topo_nodes[i, 1], topo_nodes[j, 1]], c='k', linewidth=2, zorder=4)
+
         plt.suptitle('Explored%: {:.4g} | Cleared%: {:.4g} | Length: {:.4g} | Step: {}.{}'.format(self.explored_rate,
                                                                                                   self.safe_rate,
                                                                                                   max([robot.travel_dist for robot in robot_list]),

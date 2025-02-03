@@ -185,24 +185,21 @@ class NodeManager:
 
         for center1, center2 in center_combs:
             path = nx.shortest_path(G, center_indices[center1], center_indices[center2])  # TODO: distance-based path
-            for p in path[1: -1]:  # check if in the same clique
-                if p in cliques[center1] or p in cliques[center2]:
-                    path.remove(p)
+            path = [p for p in path if p == path[0] or p == path[-1] or (p not in cliques[center1] and p not in cliques[center2])]
             if len(path) - 2 < max_hop:
                 topological_adjacent_matrix[center1, center2] = 0
                 topological_adjacent_matrix[center2, center1] = 0
 
-        topological_adjacent_matrix_padded = np.ones_like(adjacent_matrix).astype(int)
-        indices = np.where(topological_adjacent_matrix == 0)
-        new_indices = [np.array(center_indices)[i] for i in indices]
-        topological_adjacent_matrix_padded[new_indices[0], new_indices[1]] = 0
+        # topological_adjacent_matrix_padded = np.ones_like(adjacent_matrix).astype(int)
+        # indices = np.where(topological_adjacent_matrix == 0)
+        # new_indices = [np.array(center_indices)[i] for i in indices]
+        # topological_adjacent_matrix_padded[new_indices[0], new_indices[1]] = 0
 
         current_index = np.where((all_node_coords == robot_location).all(1))[0][0]
         current_topological_index = next((index for index, clique in enumerate(cliques) if current_index in clique), -1)
-        neighbor_topological_indices = np.argwhere(topological_adjacent_matrix[current_topological_index] == 0).reshape(-1)
+        # neighbor_topological_indices = np.argwhere(topological_adjacent_matrix[current_topological_index] == 0).reshape(-1)
 
-        return (topological_node_coords, topological_adjacent_matrix, topological_adjacent_matrix_padded, cliques,
-                current_topological_index, neighbor_topological_indices)
+        return cliques, topological_node_coords, topological_adjacent_matrix, current_topological_index
 
     @staticmethod
     def find_cliques(all_node_coords, adjacent_matrix, min_clique_node=4):
