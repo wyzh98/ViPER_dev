@@ -11,8 +11,6 @@ N_AGENTS = 3
 EXPLORATION = True  # True: unknown map, False: known map
 
 CELL_SIZE = 0.4  # meter per pixel
-NODE_RESOLUTION = 4.0  # meter of node interval
-DOWNSAMPLE_SIZE = NODE_RESOLUTION // CELL_SIZE
 STEP_INTERPOLATION = 5  # min=1
 
 SENSOR_RANGE = 20  # meter, 7.9812 for Gregorin's maps
@@ -20,9 +18,7 @@ ACTION_RANGE = 12  # meter, traversable distance
 UTILITY_RANGE = 0.8 * SENSOR_RANGE
 EVADER_SPEED = SENSOR_RANGE
 FRONTIER_CELL_SIZE = 4 * CELL_SIZE
-
 LOCAL_MAP_SIZE = 40  # meter
-EXTENDED_LOCAL_MAP_SIZE = 4 * SENSOR_RANGE + 4 * NODE_RESOLUTION
 
 MAX_EPISODE_STEP = 128
 REPLAY_SIZE = 10000
@@ -35,7 +31,7 @@ NODE_INPUT_DIM = 7
 EMBEDDING_DIM = 128
 
 LOCAL_K_PADDING_SIZE = 50  # the number of neighboring nodes
-LOCAL_NODE_PADDING_SIZE = 360  # the number of nodes will be padded to this value
+LOCAL_NODE_PADDING_SIZE = 320  # the number of nodes will be padded to this value
 
 USE_GPU = False  # do you want to collect training data using GPUs
 USE_GPU_GLOBAL = True  # do you want to train the network using GPUs

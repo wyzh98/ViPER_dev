@@ -1,7 +1,4 @@
-from skimage import io
-from skimage.measure import block_reduce
 from copy import deepcopy
-
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 
@@ -21,7 +18,9 @@ class Env:
         self.cell_size = CELL_SIZE  # meter
         self.sensor_range = SENSOR_RANGE  # meter
         self.safety_range = EVADER_SPEED / STEP_INTERPOLATION  # meter
-        self.ground_truth, initial_cell = self.import_ground_truth(episode_index)
+
+        self.map_loader = MapLoader(self.test)
+        self.ground_truth, self.node_resolution, initial_cell = self.map_loader.import_ground_truth(episode_index)
         self.belief_origin_x = -np.round(initial_cell[0] * self.cell_size, 1)  # meter
         self.belief_origin_y = -np.round(initial_cell[1] * self.cell_size, 1)  # meter
 
@@ -30,7 +29,7 @@ class Env:
         self.done = False
 
         self.ground_truth_info = Map_info(self.ground_truth, self.belief_origin_x, self.belief_origin_y, self.cell_size)
-        self.ground_truth_coords, _ = get_local_node_coords(np.array([0.0, 0.0]), self.ground_truth_info)
+        self.ground_truth_coords, _ = get_local_node_coords(np.array([0.0, 0.0]), self.ground_truth_info, self.node_resolution)
 
         self.robot_belief = np.ones_like(self.ground_truth) * 127 if explore else deepcopy(self.ground_truth)
         self.update_robot_belief(initial_cell)
@@ -57,24 +56,8 @@ class Env:
         if self.plot:
             self.frame_files = []
 
-
-    def import_ground_truth(self, episode_index):
-        map_dir = 'maps_test' if self.test else 'maps_train'
-        map_list = os.listdir(map_dir)
-        map_index = episode_index % np.size(map_list)
-
-        ground_truth = (io.imread(map_dir + '/' + map_list[map_index], 1)).astype(int)  # 127: obstacle, 195: free, 208: start
-        ground_truth = block_reduce(ground_truth, 2, np.min)
-        robot_cell = np.array(np.nonzero(ground_truth == 208))
-        robot_cell = np.array([robot_cell[1, 10], robot_cell[0, 10]])
-
-        ground_truth = (ground_truth > 150) | ((ground_truth <= 80) & (ground_truth >= 50))
-        ground_truth = ground_truth * 254 + 1
-
-        return ground_truth, robot_cell
-
     def set_initial_location(self):
-        free, _ = get_local_node_coords(np.array([0.0, 0.0]), self.belief_info)
+        free, _ = get_local_node_coords(np.array([0.0, 0.0]), self.belief_info, self.node_resolution)
         if GROUP_START:
             free = free if self.explore else free[np.argsort(np.linalg.norm(free, axis=1))[:self.n_agent * 2]]
             choice = np.random.choice(free.shape[0], self.n_agent, replace=False)

@@ -17,18 +17,17 @@ class Agent:
         self.local_map_info = None
         self.extended_local_map_info = None
 
+        # managers
+        self.node_manager = node_manager
+
         self.cell_size = CELL_SIZE
-        self.downsample_size = NODE_RESOLUTION  # cell
-        self.downsampled_cell_size = self.cell_size * self.downsample_size  # meter
+        self.downsampled_cell_size = self.cell_size * self.node_manager.node_resolution
         self.local_map_size = LOCAL_MAP_SIZE  # meter
-        self.extended_local_map_size = EXTENDED_LOCAL_MAP_SIZE
+        self.extended_local_map_size = 4 * SENSOR_RANGE + 4 * self.node_manager.node_resolution
 
         # frontiers
         self.explore_frontier = None
         self.safe_frontier = None
-
-        # managers
-        self.node_manager = node_manager
 
         # local graph
         (self.local_node_coords, self.explore_utility, self.safe_utility, self.uncovered_safe_utility, self.guidepost,
@@ -224,12 +223,11 @@ class Agent:
         return next_position, next_node_index, action_index
 
     def get_local_map(self, location, map_info):
-        local_map_origin_x = (location[
-                                  0] - self.local_map_size / 2) // self.downsampled_cell_size * self.downsampled_cell_size
-        local_map_origin_y = (location[
-                                  1] - self.local_map_size / 2) // self.downsampled_cell_size * self.downsampled_cell_size
-        local_map_top_x = local_map_origin_x + self.local_map_size + NODE_RESOLUTION
-        local_map_top_y = local_map_origin_y + self.local_map_size + NODE_RESOLUTION
+        self.downsampled_cell_size = self.cell_size * self.node_manager.node_resolution
+        local_map_origin_x = (location[0] - self.local_map_size / 2) // self.cell_size * self.cell_size
+        local_map_origin_y = (location[1] - self.local_map_size / 2) // self.cell_size * self.cell_size
+        local_map_top_x = local_map_origin_x + self.local_map_size + self.node_manager.node_resolution
+        local_map_top_y = local_map_origin_y + self.local_map_size + self.node_manager.node_resolution
 
         min_x = map_info.map_origin_x
         min_y = map_info.map_origin_y
@@ -266,12 +264,10 @@ class Agent:
 
     def get_extended_local_map(self, location, map_info):
         # expanding local map to involve all related frontiers
-        local_map_origin_x = (location[
-                                  0] - self.extended_local_map_size / 2) // self.downsampled_cell_size * self.downsampled_cell_size
-        local_map_origin_y = (location[
-                                  1] - self.extended_local_map_size / 2) // self.downsampled_cell_size * self.downsampled_cell_size
-        local_map_top_x = local_map_origin_x + self.extended_local_map_size + 2 * NODE_RESOLUTION
-        local_map_top_y = local_map_origin_y + self.extended_local_map_size + 2 * NODE_RESOLUTION
+        local_map_origin_x = (location[0] - self.extended_local_map_size / 2) // self.downsampled_cell_size * self.downsampled_cell_size
+        local_map_origin_y = (location[1] - self.extended_local_map_size / 2) // self.downsampled_cell_size * self.downsampled_cell_size
+        local_map_top_x = local_map_origin_x + self.extended_local_map_size + 2 * self.node_manager.node_resolution
+        local_map_top_y = local_map_origin_y + self.extended_local_map_size + 2 * self.node_manager.node_resolution
 
         min_x = map_info.map_origin_x
         min_y = map_info.map_origin_y

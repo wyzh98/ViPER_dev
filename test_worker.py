@@ -21,7 +21,8 @@ class TestWorker:
         torch.manual_seed(123)
 
         self.env = Env(global_step, n_agent=TEST_N_AGENTS, explore=EXPLORATION, plot=self.save_image, test=test)
-        self.node_manager = NodeManager(self.env.ground_truth_coords, self.env.ground_truth_info, explore=EXPLORATION, plot=self.save_image)
+        self.node_manager = NodeManager(self.env.ground_truth_coords, self.env.ground_truth_info, self.env.node_resolution,
+                                        explore=EXPLORATION, plot=self.save_image)
 
         self.robot_list = [Agent(i, policy_net, self.node_manager, self.device, self.save_image) for i in range(self.env.n_agent)]
 
