@@ -36,14 +36,14 @@ class Agent:
         self.current_local_index, self.local_adjacent_matrix, self.local_neighbor_indices, self.traversable_indices = None, None, None, None
 
         # topological graph
-        self.cliques, self.local_node_type, self.topological_node_coords = None, None, None
+        self.cliques, self.local_node_type, self.topological_node_coords, self.topological_adjacent_matrix_padded = None, None, None, None
 
         # hybrid graph
         self.hybrid_node_coords, self.current_true_hybrid_index, self.hybrid_adjacent_matrix, self.hybrid_node_safe_utility = None, None, None, None
 
         # ground truth graph (only for critic)
-        self.true_node_coords, self.true_adjacent_matrix = None, None
-        self.true_hybrid_node_coords, self.true_hybrid_adjacent_matrix = None, None
+        self.true_node_coords, self.true_hybrid_node_coords = None, None
+        self.true_adjacent_matrix, self.true_hybrid_adjacent_matrix, self.true_topological_adjacent_matrix_padded = None, None, None
         self.true_cliques, self.true_node_type, self.true_topological_node_coords = None, None, None
 
         self.travel_dist = 0
@@ -103,12 +103,13 @@ class Agent:
     def update_planning_state(self, robot_locations):
         (self.local_node_coords, self.explore_utility, self.safe_utility, self.uncovered_safe_utility, self.guidepost, self.signal, self.occupancy, self.local_adjacent_matrix,
          self.current_local_index, self.local_neighbor_indices, self.traversable_indices) = self.node_manager.get_all_node_graph(self.location, robot_locations)
-        self.cliques, self.topological_node_coords, self.topological_adjacent_matrix = self.node_manager.get_topological_node_graph(self.local_adjacent_matrix, self.local_node_coords)
+        self.cliques, self.topological_node_coords, self.topological_adjacent_matrix_padded = self.node_manager.get_topological_node_graph(self.local_adjacent_matrix, self.local_node_coords)
         self.local_node_type = self.node_manager.get_hybrid_node_graph(robot_locations, self.local_node_coords, self.topological_node_coords, self.cliques)
 
     def update_underlying_state(self, robot_locations):
         self.true_node_coords, self.true_adjacent_matrix = self.node_manager.get_underlying_node_graph(self.local_node_coords)
-        self.true_cliques, self.true_topological_node_coords = self.node_manager.get_topological_node_graph(self.true_adjacent_matrix, self.true_node_coords)
+        self.true_cliques, self.true_topological_node_coords, self.true_topological_adjacent_matrix_padded = (
+            self.node_manager.get_topological_node_graph(self.true_adjacent_matrix, self.true_node_coords))
         self.true_node_type = self.node_manager.get_hybrid_node_graph(robot_locations, self.true_node_coords, self.true_topological_node_coords, self.true_cliques)
 
     def get_observation(self, pad=True):
@@ -155,9 +156,8 @@ class Agent:
         hybrid_node_clique_center = np.array(hybrid_node_clique_center).reshape(-1, 1)
 
         remove_indices = np.argwhere(np.array(self.local_node_type) == -1).flatten()
-        hybrid_edge_mask = np.delete(self.local_adjacent_matrix, remove_indices, axis=0)
+        hybrid_edge_mask = np.delete(self.local_adjacent_matrix, remove_indices, axis=0)  # locally connected
         hybrid_edge_mask = np.delete(hybrid_edge_mask, remove_indices, axis=1)
-        self.hybrid_adjacent_matrix = hybrid_edge_mask
 
         current_local_node_coords = self.local_node_coords[self.current_local_index]
         current_hybrid_index = np.argwhere(np.all(hybrid_node_coords == current_local_node_coords, axis=1)).flatten()[0]
@@ -165,6 +165,12 @@ class Agent:
         current_local_edge = np.argwhere(hybrid_edge_mask[current_hybrid_index] == 0).flatten()
         old_to_new_neighbor_map = {old: new for old, new in zip(self.local_neighbor_indices, current_local_edge)}
         local_traversable_edge = [old_to_new_neighbor_map[old] for old in self.traversable_indices]
+
+        self.hybrid_adjacent_matrix = (self.local_adjacent_matrix > 0) & (self.topological_adjacent_matrix_padded > 0)  # both locally and topologically connected
+        self.hybrid_adjacent_matrix = np.delete(self.hybrid_adjacent_matrix, remove_indices, axis=0)
+        self.hybrid_adjacent_matrix = np.delete(self.hybrid_adjacent_matrix, remove_indices, axis=1)
+        hybrid_edge_mask = self.hybrid_adjacent_matrix
+
         n_hybrid_node = hybrid_node_coords.shape[0]
 
         hybrid_node_coords = np.concatenate((hybrid_node_coords[:, 0].reshape(-1, 1) - current_local_node_coords[0],
@@ -265,13 +271,18 @@ class Agent:
         remove_indices = np.argwhere(np.array(self.true_node_type) == -1).flatten()
         true_hybrid_edge_mask = np.delete(self.true_adjacent_matrix, remove_indices, axis=0)
         true_hybrid_edge_mask = np.delete(true_hybrid_edge_mask, remove_indices, axis=1)
-        self.true_hybrid_adjacent_matrix = true_hybrid_edge_mask
 
         current_node_coords = self.true_node_coords[self.current_local_index]
         current_true_hybrid_index = np.argwhere(np.all(true_hybrid_node_coords == current_node_coords, axis=1)).flatten()[0]
         self.current_true_hybrid_index = current_true_hybrid_index
 
         current_true_local_edge = np.argwhere(true_hybrid_edge_mask[current_true_hybrid_index] == 0).flatten()
+
+        self.true_hybrid_adjacent_matrix = (self.true_adjacent_matrix > 0) & (self.true_topological_adjacent_matrix_padded > 0)
+        self.true_hybrid_adjacent_matrix = np.delete(self.true_hybrid_adjacent_matrix, remove_indices, axis=0)
+        self.true_hybrid_adjacent_matrix = np.delete(self.true_hybrid_adjacent_matrix, remove_indices, axis=1)
+        true_hybrid_edge_mask = self.true_hybrid_adjacent_matrix
+
         n_true_hybrid_node = true_hybrid_node_coords.shape[0]
 
         true_hybrid_node_coords = np.concatenate((true_hybrid_node_coords[:, 0].reshape(-1, 1) - current_node_coords[0],
