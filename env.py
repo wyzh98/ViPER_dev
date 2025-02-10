@@ -220,7 +220,7 @@ class Env:
         nodes = get_cell_position_from_coords(robot.hybrid_node_coords, robot.safe_zone_info)
         alpha_mask = robot.safe_zone_info.map / 255 / 3
         plt.imshow(robot.safe_zone_info.map, cmap='Greens', alpha=alpha_mask)
-        plt.scatter(nodes[:, 0], nodes[:, 1], c=robot.hybrid_node_safe_utility, s=5, zorder=2)
+        plt.scatter(nodes[:, 0], nodes[:, 1], c=robot.hybrid_node_safe_utility, s=5, zorder=3)
 
         remove_indices = np.argwhere(np.array(robot.local_node_type) == -1).flatten()
         topo_adj_matrix_reduced = np.delete(robot.topological_adjacent_matrix_padded, remove_indices, axis=0)
@@ -228,9 +228,13 @@ class Env:
         for i in range(nodes.shape[0]):
             for j in range(i + 1, nodes.shape[0]):
                 if robot.hybrid_adjacent_matrix[i, j] == 0:
-                    plt.plot([nodes[i, 0], nodes[j, 0]], [nodes[i, 1], nodes[j, 1]], c=(0.988, 0.557, 0.675), linewidth=1.5, zorder=0.5)
+                    plt.plot([nodes[i, 0], nodes[j, 0]], [nodes[i, 1], nodes[j, 1]], c=(0.988, 0.557, 0.675), linewidth=1.5, zorder=1)
                 if topo_adj_matrix_reduced[i, j] == 0:
-                    plt.plot([nodes[i, 0], nodes[j, 0]], [nodes[i, 1], nodes[j, 1]], c=(0.132, 0.347, 0.614), linewidth=1.5, zorder=1)
+                    plt.plot([nodes[i, 0], nodes[j, 0]], [nodes[i, 1], nodes[j, 1]], c=(0.132, 0.347, 0.614), linewidth=1.5, zorder=2)
+        for robot in robot_list:
+            c = color_list[robot.id]
+            robot_cell = get_cell_position_from_coords(self.robot_locations[robot.id], robot.safe_zone_info)
+            plt.plot(robot_cell[0], robot_cell[1], c=c, marker='o', markersize=10, zorder=5)
 
         plt.subplot(1, 3, 3)
         plt.imshow(self.robot_belief, cmap='gray', vmin=0)
