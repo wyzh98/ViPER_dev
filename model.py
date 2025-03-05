@@ -294,10 +294,10 @@ class PolicyNet(nn.Module):
 
         # graph encoder
         self.initial_embedding = nn.Linear(node_dim, embedding_dim)
-        self.graph_encoder = Encoder(embedding_dim=embedding_dim, n_head=4, n_layer=6)
+        self.graph_encoder = Encoder(embedding_dim=embedding_dim, n_head=8, n_layer=6)
 
         # decoder
-        self.graph_decoder = Decoder(embedding_dim=embedding_dim, n_head=4, n_layer=1)
+        self.graph_decoder = Decoder(embedding_dim=embedding_dim, n_head=8, n_layer=1)
         self.current_embedding = nn.Linear(embedding_dim * 2, embedding_dim)
 
         # pointer
@@ -346,11 +346,11 @@ class QNet(nn.Module):
 
         # graph encoder
         self.initial_embedding = nn.Linear(node_dim, embedding_dim)
-        self.graph_encoder = Encoder(embedding_dim=embedding_dim, n_head=4, n_layer=6)
+        self.graph_encoder = Encoder(embedding_dim=embedding_dim, n_head=8, n_layer=6)
 
         # decoder
-        self.graph_decoder = Decoder(embedding_dim=embedding_dim, n_head=4, n_layer=1)
-        self.agent_decoder = Decoder(embedding_dim=embedding_dim, n_head=4, n_layer=1)
+        self.graph_decoder = Decoder(embedding_dim=embedding_dim, n_head=8, n_layer=1)
+        self.agent_decoder = Decoder(embedding_dim=embedding_dim, n_head=8, n_layer=1)
         self.all_agent_embedding = nn.Linear(embedding_dim * 2, embedding_dim)
 
         self.q_values_layer = nn.Linear(embedding_dim * 4, 1)
