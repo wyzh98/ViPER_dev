@@ -86,9 +86,9 @@ class Multi_agent_worker:
         self.perf_metrics['explored_rate'] = self.env.explored_rate
         self.perf_metrics['safe_rate'] = self.env.safe_rate
         self.perf_metrics['success_rate'] = done
-        self.perf_metrics['sr_room'] = np.nan if self.env.map_loader.map_category != 'room' else done
-        self.perf_metrics['sr_tunnel'] = np.nan if self.env.map_loader.map_category != 'tunnel' else done
-        self.perf_metrics['sr_outdoor'] = np.nan if self.env.map_loader.map_category != 'outdoor' else done
+        self.perf_metrics['sr_room'] = done if 'room' in self.env.map_loader.map_category else np.nan
+        self.perf_metrics['sr_tunnel'] = done if 'tunnel' in self.env.map_loader.map_category else np.nan
+        self.perf_metrics['sr_outdoor'] = done if 'outdoor' in self.env.map_loader.map_category else np.nan
 
         # save episode buffer
         for robot in self.robot_list:
@@ -137,5 +137,5 @@ if __name__ == '__main__':
     policynet = PolicyNet(NODE_INPUT_DIM, EMBEDDING_DIM)
     # ckp = torch.load('model/viper/checkpoint.pth', map_location='cpu')
     # policynet.load_state_dict(ckp['policy_model'])
-    worker = Multi_agent_worker(0, policynet, 1, 'cpu', True)
+    worker = Multi_agent_worker(0, policynet, 1, 'cpu', False)
     worker.run_episode()
