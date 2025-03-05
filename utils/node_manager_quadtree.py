@@ -6,7 +6,8 @@ from parameter import *
 
 
 class NodeManager:
-    def __init__(self, ground_truth=None, ground_truth_info=None, explore=False, plot=False):
+    def __init__(self, ground_truth=None, ground_truth_info=None, node_resolution=4.0, explore=False, plot=False):
+        self.node_resolution = node_resolution
         self.local_nodes_dict = quads.QuadTree((0, 0), 1000, 1000)
         if ground_truth is not None:
             self.ground_truth_nodes_dict = quads.QuadTree((0, 0), 1000, 1000)
@@ -22,7 +23,7 @@ class NodeManager:
     def init_ground_truth_nodes(self, ground_truth, ground_truth_info, explore):
         for coords in ground_truth:
             key = (coords[0], coords[1])
-            node = LocalNode(coords, np.array([]), ground_truth_info)
+            node = LocalNode(coords, np.array([]), ground_truth_info, self.node_resolution)
             self.ground_truth_nodes_dict.insert(point=key, data=node)
             if not explore:
                 self.local_nodes_dict.insert(point=key, data=node)
@@ -37,12 +38,12 @@ class NodeManager:
 
     def add_node_to_dict(self, coords, local_frontiers, extended_local_map_info):
         key = (coords[0], coords[1])
-        node = LocalNode(coords, local_frontiers, extended_local_map_info)
+        node = LocalNode(coords, local_frontiers, extended_local_map_info, self.node_resolution)
         self.local_nodes_dict.insert(point=key, data=node)
         return self.check_node_exist_in_dict(coords)
 
     def update_local_explore_graph(self, robot_location, local_frontiers, local_map_info, extended_local_map_info):
-        extended_local_node_coords, _ = get_local_node_coords(robot_location, extended_local_map_info)
+        extended_local_node_coords, _ = get_local_node_coords(robot_location, extended_local_map_info, self.node_resolution)
         for coords in extended_local_node_coords:
             node = self.check_node_exist_in_dict(coords)
             if node is not None:
@@ -50,7 +51,7 @@ class NodeManager:
                 if (node.explore_utility > 0) and (np.linalg.norm(node.coords - robot_location) <= 2 * SENSOR_RANGE):
                     node.update_observable_explore_frontiers(local_frontiers, extended_local_map_info)
 
-        local_node_coords, _ = get_local_node_coords(robot_location, local_map_info)
+        local_node_coords, _ = get_local_node_coords(robot_location, local_map_info, self.node_resolution)
 
         for coords in local_node_coords:
             node = self.check_node_exist_in_dict(coords)
@@ -64,8 +65,8 @@ class NodeManager:
             node.update_neighbor_explored_nodes(extended_local_map_info, self.local_nodes_dict, plot_x, plot_y)
 
     def update_safe_graph(self, robot_location, safe_frontiers, uncovered_safe_frontiers, safe_zone_info, map_info):
-        explore_node_coords, _ = get_local_node_coords(robot_location, map_info)
-        safe_node_coords, _ = get_local_node_coords(robot_location, safe_zone_info, connected=False)
+        explore_node_coords, _ = get_local_node_coords(robot_location, map_info, self.node_resolution)
+        safe_node_coords, _ = get_local_node_coords(robot_location, safe_zone_info, self.node_resolution, connected=False)
         node_coords = np.unique(np.concatenate((explore_node_coords, safe_node_coords)), axis=0)
 
         for coords in node_coords:
@@ -203,9 +204,8 @@ class NodeManager:
 
         return cliques, topological_node_coords, topological_adjacent_matrix_padded
 
-    @staticmethod
-    def find_cliques(all_node_coords, adjacent_matrix, min_clique_node=4):
-        cardinals = np.array([[-1, 0], [1, 0], [0, 1], [0, -1], [-1, -1], [-1, 1], [1, -1], [1, 1]]) * NODE_RESOLUTION
+    def find_cliques(self, all_node_coords, adjacent_matrix, min_clique_node=4):
+        cardinals = np.array([[-1, 0], [1, 0], [0, 1], [0, -1], [-1, -1], [-1, 1], [1, -1], [1, 1]]) * self.node_resolution
         G = nx.from_numpy_array(adjacent_matrix)
         cliques = []
         while len(G.nodes) > 0:
@@ -364,8 +364,9 @@ class NodeManager:
 
 
 class LocalNode:
-    def __init__(self, coords, local_frontiers, extended_local_map_info):
+    def __init__(self, coords, local_frontiers, extended_local_map_info, node_resolution):
         self.coords = coords
+        self.node_resolution = node_resolution
         self.utility_range = UTILITY_RANGE
         self.observable_explore_frontiers = self.init_observable_explore_frontiers(local_frontiers, extended_local_map_info)
         self.observable_safe_frontiers = None
@@ -376,7 +377,7 @@ class LocalNode:
         self.visited = 0
         self.safe = 0
 
-        self.center_index = int(SENSOR_RANGE // NODE_RESOLUTION)
+        self.center_index = int(SENSOR_RANGE // self.node_resolution)
         self.neighbor_matrix_size = self.center_index * 2 + 1
         self.neighbor_matrix = -np.ones((self.neighbor_matrix_size, self.neighbor_matrix_size)).astype(int)
         self.neighbor_matrix[self.center_index, self.center_index] = 1
@@ -465,8 +466,8 @@ class LocalNode:
                         self.neighbor_matrix[i, j] = 1
                         continue
 
-                    neighbor_coords = np.around(np.array([self.coords[0] + (i - self.center_index) * NODE_RESOLUTION,
-                                                          self.coords[1] + (j - self.center_index) * NODE_RESOLUTION]), 1)
+                    neighbor_coords = np.around(np.array([self.coords[0] + (i - self.center_index) * self.node_resolution,
+                                                          self.coords[1] + (j - self.center_index) * self.node_resolution]), 1)
                     neighbor_node = nodes_dict.find((neighbor_coords[0], neighbor_coords[1]))
                     if neighbor_node is None:
                         cell = get_cell_position_from_coords(neighbor_coords, extended_local_map_info)

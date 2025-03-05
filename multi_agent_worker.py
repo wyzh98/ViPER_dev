@@ -19,8 +19,8 @@ class Multi_agent_worker:
 
         self.env = Env(global_step, explore=EXPLORATION, plot=self.save_image)
         self.n_agent = N_AGENTS
-        self.node_manager = NodeManager(self.env.ground_truth_coords, self.env.ground_truth_info, explore=EXPLORATION, plot=self.save_image)
-
+        self.node_manager = NodeManager(self.env.ground_truth_coords, self.env.ground_truth_info, self.env.node_resolution,
+                                        explore=EXPLORATION, plot=self.save_image)
         self.robot_list = [Agent(i, policy_net, self.node_manager, self.device, self.save_image) for i in range(self.n_agent)]
 
         self.episode_buffer = dict()
@@ -86,6 +86,9 @@ class Multi_agent_worker:
         self.perf_metrics['explored_rate'] = self.env.explored_rate
         self.perf_metrics['safe_rate'] = self.env.safe_rate
         self.perf_metrics['success_rate'] = done
+        self.perf_metrics['sr_room'] = np.nan if self.env.map_loader.map_category != 'room' else done
+        self.perf_metrics['sr_tunnel'] = np.nan if self.env.map_loader.map_category != 'tunnel' else done
+        self.perf_metrics['sr_outdoor'] = np.nan if self.env.map_loader.map_category != 'outdoor' else done
 
         # save episode buffer
         for robot in self.robot_list:
@@ -101,7 +104,7 @@ class Multi_agent_worker:
 
         # save gif
         if self.save_image:
-            make_gif(gifs_path, self.global_step, self.env.frame_files, self.env.safe_rate)
+            make_gif(gifs_path, self.global_step, self.env.frame_files, self.env.safe_rate, self.env.map_loader.map_category)
 
     def solve_path_confict(self, selected_locations, dist_list):
         selected_locations = np.array(selected_locations).reshape(-1, 2)

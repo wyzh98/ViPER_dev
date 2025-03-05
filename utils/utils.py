@@ -2,7 +2,11 @@ import numpy as np
 import imageio
 import os
 import copy
-from skimage.morphology import label
+import random
+import cv2
+from skimage import io
+from skimage.measure import block_reduce
+from skimage.morphology import label, skeletonize
 
 from parameter import *
 
@@ -52,14 +56,14 @@ def get_free_and_connected_map(location, map_info, connected=True):
     return connected_free_map
 
 
-def get_local_node_coords(location, local_map_info, connected=True):
-    x_min = (local_map_info.map_origin_x // NODE_RESOLUTION + 1) * NODE_RESOLUTION
-    y_min = (local_map_info.map_origin_y // NODE_RESOLUTION + 1) * NODE_RESOLUTION
-    x_max = ((local_map_info.map_origin_x + local_map_info.map.shape[1] * CELL_SIZE) // NODE_RESOLUTION) * NODE_RESOLUTION
-    y_max = ((local_map_info.map_origin_y + local_map_info.map.shape[0] * CELL_SIZE) // NODE_RESOLUTION) * NODE_RESOLUTION
+def get_local_node_coords(location, local_map_info, node_resolution, connected=True):
+    x_min = (local_map_info.map_origin_x // node_resolution + 1) * node_resolution
+    y_min = (local_map_info.map_origin_y // node_resolution + 1) * node_resolution
+    x_max = ((local_map_info.map_origin_x + (local_map_info.map.shape[1] - 1) * CELL_SIZE) // node_resolution) * node_resolution  # FIXME: -1 for boundary
+    y_max = ((local_map_info.map_origin_y + (local_map_info.map.shape[0] - 1) * CELL_SIZE) // node_resolution) * node_resolution
 
-    x_coords = np.arange(x_min, x_max, NODE_RESOLUTION)
-    y_coords = np.arange(y_min, y_max, NODE_RESOLUTION)
+    x_coords = np.arange(x_min, x_max, node_resolution)
+    y_coords = np.arange(y_min, y_max, node_resolution)
     t1, t2 = np.meshgrid(x_coords, y_coords)
     nodes = np.vstack([t1.T.ravel(), t2.T.ravel()]).T
     nodes = np.around(nodes, 1)
@@ -242,8 +246,8 @@ def check_collision(start, end, map_info, max_collision=1):
     return collision
 
 
-def make_gif(path, n, frame_files, rate):
-    with imageio.get_writer('{}/{}_explored_rate_{:.4g}.gif'.format(path, n, rate), mode='I', duration=1) as writer:
+def make_gif(path, n, frame_files, rate, map_category):
+    with imageio.get_writer('{}/{}_{}_explored_{:.4g}.gif'.format(path, n, map_category, rate), mode='I', duration=1) as writer:
         for frame in frame_files:
             image = imageio.imread(frame)
             writer.append_data(image)
@@ -265,4 +269,53 @@ class Map_info:
         self.map = map
         self.map_origin_x = map_origin_x
         self.map_origin_y = map_origin_y
+
+
+class MapLoader:
+    def __init__(self, test):
+        self.test = test
+        self.cell_size = CELL_SIZE
+        self.map_list = self.load_maps()
+        self.map_path = None
+        self.map_category = None
+
+    def load_maps(self):
+        map_dir = os.path.join('maps', 'maps_test' if self.test else 'maps_train')
+        map_paths = []
+        for root, _, files in os.walk(map_dir):
+            if 'Gregorin' in root:
+                continue
+            for file in sorted(files):
+                if file.endswith('.png'):
+                    map_paths.append(os.path.join(root, file))
+        map_paths = sorted(map_paths)
+        rng = random.Random(1)
+        rng.shuffle(map_paths)
+        return map_paths
+
+    def min_corridor_width(self, bin_map):
+        bin_map = np.where(bin_map > 1, 255, 0).astype(np.uint8)
+        distance_transform = cv2.distanceTransform(bin_map, cv2.DIST_L2, 3)
+        corridor_mask = (bin_map == 255)
+        skeleton = skeletonize(corridor_mask)
+        skeleton_distances = distance_transform[skeleton]
+        unique_skeleton_distances, counts = np.unique(skeleton_distances, return_counts=True)
+        valid_distances = unique_skeleton_distances[counts >= 10]  # find value appears 10+ times
+        min_corridor_width = np.min(valid_distances) * 2 * self.cell_size
+        return min_corridor_width
+
+    def import_ground_truth(self, episode_index):
+        self.map_path = self.map_list[episode_index % len(self.map_list)]
+        self.map_category = os.path.splitext(os.path.basename(self.map_path))[0]
+        ground_truth = (io.imread(self.map_path, 1)).astype(int)  # 127: obstacle, 195: free, 208: start
+        robot_cell = np.array(np.nonzero(ground_truth == 208))
+        robot_cell = np.array([robot_cell[1, 10], robot_cell[0, 10]])
+        ground_truth = (ground_truth > 150) | ((ground_truth <= 80) & (ground_truth >= 50))
+        ground_truth = ground_truth * 254 + 1
+
+        min_corridor_width = self.min_corridor_width(ground_truth)
+        node_resolution = min_corridor_width // self.cell_size * self.cell_size
+        node_resolution = np.around(max(2.0, min(node_resolution, 6.0)), 1)  # node resolution clip to [2, 6] meter
+
+        return ground_truth, node_resolution, robot_cell
 

@@ -106,7 +106,7 @@ def main():
     # initialize metric collector
     experience_buffer = {}
 
-    metric_name = ['max_travel_dist', 'success_rate', 'explored_rate', 'safe_rate']
+    metric_name = ['max_travel_dist', 'success_rate', 'explored_rate', 'safe_rate', 'sr_room', 'sr_tunnel', 'sr_outdoor']
     training_data = []
     perf_metrics = {}
     for n in metric_name:
@@ -312,7 +312,7 @@ def write_to_tensor_board(writer, tensorboard_data, curr_episode):
     tensorboard_data = np.array(tensorboard_data)
     tensorboard_data = list(np.nanmean(tensorboard_data, axis=0))
     (reward, value, policy_loss, q_value_loss, entropy, policy_grad_norm, q_value_grad_norm, log_alpha, alpha_loss,
-     max_travel_dist, success_rate, explored_rate, safe_rate) = tensorboard_data
+     max_travel_dist, success_rate, explored_rate, safe_rate, sr_room, sr_tunnel, sr_outdoor) = tensorboard_data
     metrics = { "Losses/Value": value,
                 "Losses/Policy Loss": policy_loss,
                 "Losses/Alpha Loss": alpha_loss,
@@ -326,6 +326,10 @@ def write_to_tensor_board(writer, tensorboard_data, curr_episode):
                 "Perf/Success Rate": success_rate,
                 "Perf/Explored Rate": explored_rate,
                 "Perf/Safe Rate": safe_rate,
+                "SR/Average": success_rate,
+                "SR/Room": sr_room,
+                "SR/Tunnel": sr_tunnel,
+                "SR/Outdoor": sr_outdoor
                 }
     for k, v in metrics.items():
         writer.add_scalar(k, v, curr_episode)
