@@ -126,6 +126,92 @@ class MultiHeadAttention(nn.Module):
         return out, attention  # batch_size*n_query*embedding_dim
 
 
+class EdgeAwareMultiHeadAttention(nn.Module):
+    def __init__(self, embedding_dim, n_heads=8):
+        super(EdgeAwareMultiHeadAttention, self).__init__()
+        self.embedding_dim = embedding_dim
+        self.n_heads = n_heads // 2
+        self.n_heads_top = n_heads - self.n_heads
+        self.value_dim = embedding_dim // n_heads
+        self.key_dim = self.value_dim
+        self.norm_factor = 1 / math.sqrt(self.key_dim)
+
+        self.w_query = nn.Parameter(torch.Tensor(self.n_heads, self.embedding_dim, self.key_dim))
+        self.w_key = nn.Parameter(torch.Tensor(self.n_heads, self.embedding_dim, self.key_dim))
+        self.w_value = nn.Parameter(torch.Tensor(self.n_heads, self.embedding_dim, self.value_dim))
+        self.w_out = nn.Parameter(torch.Tensor(self.n_heads * self.value_dim, self.embedding_dim))
+
+        self.w_query_top = nn.Parameter(torch.Tensor(self.n_heads_top, self.embedding_dim, self.key_dim))
+        self.w_key_top = nn.Parameter(torch.Tensor(self.n_heads_top, self.embedding_dim, self.key_dim))
+        self.w_value_top = nn.Parameter(torch.Tensor(self.n_heads_top, self.embedding_dim, self.value_dim))
+        self.w_out_top = nn.Parameter(torch.Tensor(self.n_heads_top * self.value_dim, self.embedding_dim))
+
+        self.init_parameters()
+
+    def init_parameters(self):
+        for param in self.parameters():
+            nn.init.xavier_uniform_(param)
+
+    def forward(self, q, k=None, v=None, key_padding_mask=None, all_mask=None, top_mask=None):
+        if k is None:
+            k = q
+        if v is None:
+            v = q
+
+        n_batch, n_key, n_dim = k.size()
+        n_query = q.size(1)
+        n_value = v.size(1)
+
+        k_flat = k.contiguous().view(-1, n_dim)
+        v_flat = v.contiguous().view(-1, n_dim)
+        q_flat = q.contiguous().view(-1, n_dim)
+        shape_v = (self.n_heads, n_batch, n_value, -1)
+        shape_k = (self.n_heads, n_batch, n_key, -1)
+        shape_q = (self.n_heads, n_batch, n_query, -1)
+        shape_v_top = (self.n_heads_top, n_batch, n_value, -1)
+        shape_k_top = (self.n_heads_top, n_batch, n_key, -1)
+        shape_q_top = (self.n_heads_top, n_batch, n_query, -1)
+
+        Q = torch.matmul(q_flat, self.w_query).view(shape_q)  # n_heads*batch_size*n_query*key_dim
+        K = torch.matmul(k_flat, self.w_key).view(shape_k)  # n_heads*batch_size*targets_size*key_dim
+        V = torch.matmul(v_flat, self.w_value).view(shape_v)  # n_heads*batch_size*targets_size*value_dim
+        U = self.norm_factor * torch.matmul(Q, K.transpose(2, 3))  # n_heads*batch_size*n_query*targets_size
+
+        Q_top = torch.matmul(q_flat, self.w_query_top).view(shape_q_top)  # n_heads*batch_size*n_query*key_dim
+        K_top = torch.matmul(k_flat, self.w_key_top).view(shape_k_top)  # n_heads*batch_size*targets_size*key_dim
+        V_top = torch.matmul(v_flat, self.w_value_top).view(shape_v_top)  # n_heads*batch_size*targets_size*value_dim
+        U_top = self.norm_factor * torch.matmul(Q_top, K_top.transpose(2, 3))
+
+        all_mask = all_mask.bool()
+        top_mask = top_mask.bool()
+        # top_mask = all_mask | ~local_mask
+        all_mask = all_mask.view(1, n_batch, n_query, n_key).expand_as(U)
+        top_mask = top_mask.view(1, n_batch, n_query, n_key).expand_as(U_top)
+
+        key_padding_mask = key_padding_mask.repeat(1, n_query, 1)
+
+        U = U.masked_fill((all_mask + key_padding_mask.view(1, n_batch, n_query, n_key).expand_as(U)) > 0, -1e8)
+        U_top = U_top.masked_fill((top_mask + key_padding_mask.view(1, n_batch, n_query, n_key).expand_as(U_top)) > 0, -1e8)
+
+        attn = torch.softmax(U, dim=-1)  # n_heads*batch_size*n_query*targets_size
+        attn_top = torch.softmax(U_top, dim=-1)
+
+        heads = torch.matmul(attn, V)  # n_heads*batch_size*n_query*value_dim
+        heads_top = torch.matmul(attn_top, V_top)
+
+        out = torch.mm(
+            heads.permute(1, 2, 0, 3).reshape(-1, self.n_heads * self.value_dim), # batch_size*n_query*n_heads*value_dim
+            self.w_out.view(-1, self.embedding_dim)  # n_heads*value_dim*embedding_dim
+            ).view(-1, n_query, self.embedding_dim)
+        out_top = torch.mm(
+                heads_top.permute(1, 2, 0, 3).reshape(-1, self.n_heads_top * self.value_dim),  # batch_size*n_query*n_heads*value_dim
+                self.w_out_top.view(-1, self.embedding_dim)  # n_heads*value_dim*embedding_dim
+                ).view(-1, n_query, self.embedding_dim)
+        out = out + out_top
+
+        return out, (attn, attn_top)
+
+
 class Normalization(nn.Module):
     def __init__(self, embedding_dim):
         super(Normalization, self).__init__()
@@ -138,16 +224,16 @@ class Normalization(nn.Module):
 class EncoderLayer(nn.Module):
     def __init__(self, embedding_dim, n_head):
         super(EncoderLayer, self).__init__()
-        self.multiHeadAttention = MultiHeadAttention(embedding_dim, n_head)
+        self.edgeawareMHA = EdgeAwareMultiHeadAttention(embedding_dim, n_head)
         self.normalization1 = Normalization(embedding_dim)
         self.feedForward = nn.Sequential(nn.Linear(embedding_dim, 512), nn.ReLU(inplace=True),
                                          nn.Linear(512, embedding_dim))
         self.normalization2 = Normalization(embedding_dim)
 
-    def forward(self, src, key_padding_mask=None, attn_mask=None):
+    def forward(self, src, key_padding_mask=None, all_mask=None, top_mask=None):
         h0 = src
         h = self.normalization1(src)
-        h, _ = self.multiHeadAttention(q=h, key_padding_mask=key_padding_mask, attn_mask=attn_mask)
+        h, _ = self.edgeawareMHA(q=h, key_padding_mask=key_padding_mask, all_mask=all_mask, top_mask=top_mask)
         h = h + h0
         h1 = h
         h = self.normalization2(h)
@@ -159,7 +245,7 @@ class EncoderLayer(nn.Module):
 class DecoderLayer(nn.Module):
     def __init__(self, embedding_dim, n_head):
         super(DecoderLayer, self).__init__()
-        self.multiHeadAttention = MultiHeadAttention(embedding_dim, n_head)
+        self.MHA = MultiHeadAttention(embedding_dim, n_head)
         self.normalization1 = Normalization(embedding_dim)
         self.feedForward = nn.Sequential(nn.Linear(embedding_dim, 512),
                                          nn.ReLU(inplace=True),
@@ -170,8 +256,8 @@ class DecoderLayer(nn.Module):
         h0 = tgt
         tgt = self.normalization1(tgt)
         memory = self.normalization1(memory)
-        h, w = self.multiHeadAttention(q=tgt, k=memory, v=memory, key_padding_mask=key_padding_mask,
-                                       attn_mask=attn_mask)
+        h, w = self.MHA(q=tgt, k=memory, v=memory, key_padding_mask=key_padding_mask,
+                        attn_mask=attn_mask)
         h = h + h0
         h1 = h
         h = self.normalization2(h)
@@ -185,9 +271,9 @@ class Encoder(nn.Module):
         super(Encoder, self).__init__()
         self.layers = nn.ModuleList(EncoderLayer(embedding_dim, n_head) for i in range(n_layer))
 
-    def forward(self, src, key_padding_mask=None, attn_mask=None):
+    def forward(self, src, key_padding_mask=None, all_mask=None, top_mask=None):
         for layer in self.layers:
-            src = layer(src, key_padding_mask=key_padding_mask, attn_mask=attn_mask)
+            src = layer(src, key_padding_mask=key_padding_mask, all_mask=all_mask, top_mask=top_mask)
         return src
 
 
@@ -217,11 +303,12 @@ class PolicyNet(nn.Module):
         # pointer
         self.pointer = SingleHeadAttention(embedding_dim)
 
-    def encode_graph(self, node_inputs, node_padding_mask, edge_mask):
+    def encode_graph(self, node_inputs, node_padding_mask, all_edge_mask, top_edge_mask):
         node_feature = self.initial_embedding(node_inputs)
         enhanced_node_feature = self.graph_encoder(src=node_feature,
                                                    key_padding_mask=node_padding_mask,
-                                                   attn_mask=edge_mask)
+                                                   all_mask=all_edge_mask,
+                                                   top_mask=top_edge_mask)
 
         return enhanced_node_feature
 
@@ -246,8 +333,8 @@ class PolicyNet(nn.Module):
 
         return logp
 
-    def forward(self, node_inputs, node_padding_mask, edge_mask, current_index, current_edge, edge_padding_mask):
-        enhanced_node_feature = self.encode_graph(node_inputs, node_padding_mask, edge_mask)
+    def forward(self, node_inputs, node_padding_mask, edge_mask, top_edge_mask, current_index, current_edge, edge_padding_mask):
+        enhanced_node_feature = self.encode_graph(node_inputs, node_padding_mask, edge_mask, top_edge_mask)
         current_node_feature, enhanced_current_node_feature = self.decode_state(enhanced_node_feature, current_index, node_padding_mask)
         logp = self.output_policy(current_node_feature, enhanced_current_node_feature, enhanced_node_feature,
                                   current_edge, edge_padding_mask)
@@ -270,11 +357,12 @@ class QNet(nn.Module):
 
         self.q_values_layer = nn.Linear(embedding_dim * 4, 1)
 
-    def encode_graph(self, node_inputs, node_padding_mask, edge_mask):
+    def encode_graph(self, node_inputs, node_padding_mask, edge_mask, top_edge_mask):
         node_feature = self.initial_embedding(node_inputs)
         enhanced_node_feature = self.graph_encoder(src=node_feature,
                                                    key_padding_mask=node_padding_mask,
-                                                   attn_mask=edge_mask)
+                                                   all_mask=edge_mask,
+                                                   top_mask=top_edge_mask)
 
         return enhanced_node_feature
 
@@ -315,9 +403,9 @@ class QNet(nn.Module):
         q_values = self.q_values_layer(action_features)
         return q_values
 
-    def forward(self, node_inputs, node_padding_mask, edge_mask, current_index, current_edge,
+    def forward(self, node_inputs, node_padding_mask, edge_mask, top_edge_mask, current_index, current_edge,
                 all_agent_indices, all_agent_next_indices):
-        enhanced_node_feature = self.encode_graph(node_inputs, node_padding_mask, edge_mask)
+        enhanced_node_feature = self.encode_graph(node_inputs, node_padding_mask, edge_mask, top_edge_mask)
         current_node_feature, enhanced_current_node_feature = self.decode_state(enhanced_node_feature, current_index, node_padding_mask)
         q_values = self.output_q(current_node_feature, enhanced_current_node_feature, enhanced_node_feature,
                                  current_edge, current_index, all_agent_indices, all_agent_next_indices)

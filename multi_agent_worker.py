@@ -13,6 +13,7 @@ if not os.path.exists(gifs_path):
 class Multi_agent_worker:
     def __init__(self, meta_agent_id, policy_net, global_step, device='cpu', save_image=False):
         self.meta_agent_id = meta_agent_id
+        self.policy_net = policy_net
         self.global_step = global_step
         self.save_image = save_image
         self.device = device
@@ -138,7 +139,7 @@ if __name__ == '__main__':
     from parameter import *
     import torch
     policynet = PolicyNet(NODE_INPUT_DIM, EMBEDDING_DIM)
-    # ckp = torch.load('model/viper/checkpoint.pth', map_location='cpu')
+    # ckp = torch.load('model/viper_hybrid/checkpoint.pth', map_location='cpu')
     # policynet.load_state_dict(ckp['policy_model'])
-    worker = Multi_agent_worker(0, policynet, 0, 'cpu', True)
+    worker = Multi_agent_worker(0, policynet, 1, 'cpu', False)
     worker.run_episode()

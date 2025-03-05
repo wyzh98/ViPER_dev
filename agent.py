@@ -156,20 +156,23 @@ class Agent:
         hybrid_node_clique_center = np.array(hybrid_node_clique_center).reshape(-1, 1)
 
         remove_indices = np.argwhere(np.array(self.local_node_type) == -1).flatten()
-        hybrid_edge_mask = np.delete(self.local_adjacent_matrix, remove_indices, axis=0)  # locally connected
-        hybrid_edge_mask = np.delete(hybrid_edge_mask, remove_indices, axis=1)
+        local_edge_mask = np.delete(self.local_adjacent_matrix, remove_indices, axis=0)  # locally connected
+        local_edge_mask = np.delete(local_edge_mask, remove_indices, axis=1)
 
         current_local_node_coords = self.local_node_coords[self.current_local_index]
         current_hybrid_index = np.argwhere(np.all(hybrid_node_coords == current_local_node_coords, axis=1)).flatten()[0]
 
-        current_local_edge = np.argwhere(hybrid_edge_mask[current_hybrid_index] == 0).flatten()
+        current_local_edge = np.argwhere(local_edge_mask[current_hybrid_index] == 0).flatten()
         old_to_new_neighbor_map = {old: new for old, new in zip(self.local_neighbor_indices, current_local_edge)}
         local_traversable_edge = [old_to_new_neighbor_map[old] for old in self.traversable_indices]
 
-        self.hybrid_adjacent_matrix = (self.local_adjacent_matrix > 0) & (self.topological_adjacent_matrix_padded > 0)  # both locally and topologically connected
+        self.hybrid_adjacent_matrix = self.local_adjacent_matrix & self.topological_adjacent_matrix_padded  # both locally and topologically connected
         self.hybrid_adjacent_matrix = np.delete(self.hybrid_adjacent_matrix, remove_indices, axis=0)
         self.hybrid_adjacent_matrix = np.delete(self.hybrid_adjacent_matrix, remove_indices, axis=1)
+        self.topological_adjacent_matrix_padded = np.delete(self.topological_adjacent_matrix_padded, remove_indices, axis=0)
+        self.topological_adjacent_matrix_padded = np.delete(self.topological_adjacent_matrix_padded, remove_indices, axis=1)
         hybrid_edge_mask = self.hybrid_adjacent_matrix
+        topological_edge_mask = self.topological_adjacent_matrix_padded
 
         n_hybrid_node = hybrid_node_coords.shape[0]
 
@@ -197,10 +200,12 @@ class Agent:
         current_hybrid_index = torch.tensor([current_hybrid_index]).reshape(1, 1, 1).to(self.device)
 
         hybrid_edge_mask = torch.tensor(hybrid_edge_mask).unsqueeze(0).to(self.device)
+        topological_edge_mask = torch.tensor(topological_edge_mask).unsqueeze(0).to(self.device)
 
         if pad:
             padding = torch.nn.ConstantPad2d((0, LOCAL_NODE_PADDING_SIZE - n_hybrid_node, 0, LOCAL_NODE_PADDING_SIZE - n_hybrid_node), 1)
             hybrid_edge_mask = padding(hybrid_edge_mask)
+            topological_edge_mask = padding(topological_edge_mask)
 
         current_local_edge = torch.tensor(current_local_edge).unsqueeze(0).to(self.device)
         k_size = current_local_edge.size()[-1]
@@ -215,7 +220,7 @@ class Agent:
         current_local_edge = current_local_edge.unsqueeze(-1)
         local_edge_padding_mask = local_edge_padding_mask.unsqueeze(0)
 
-        return [node_inputs, hybrid_node_padding_mask, hybrid_edge_mask, current_hybrid_index, current_local_edge, local_edge_padding_mask]
+        return [node_inputs, hybrid_node_padding_mask, hybrid_edge_mask, topological_edge_mask, current_hybrid_index, current_local_edge, local_edge_padding_mask]
 
     def get_state(self):
         n_true_node = len(self.true_node_coords)
@@ -269,19 +274,22 @@ class Agent:
         true_hybrid_node_clique_center = np.array(true_hybrid_node_clique_center).reshape(-1, 1)
 
         remove_indices = np.argwhere(np.array(self.true_node_type) == -1).flatten()
-        true_hybrid_edge_mask = np.delete(self.true_adjacent_matrix, remove_indices, axis=0)
-        true_hybrid_edge_mask = np.delete(true_hybrid_edge_mask, remove_indices, axis=1)
+        true_local_edge_mask = np.delete(self.true_adjacent_matrix, remove_indices, axis=0)
+        true_local_edge_mask = np.delete(true_local_edge_mask, remove_indices, axis=1)
 
         current_node_coords = self.true_node_coords[self.current_local_index]
         current_true_hybrid_index = np.argwhere(np.all(true_hybrid_node_coords == current_node_coords, axis=1)).flatten()[0]
         self.current_true_hybrid_index = current_true_hybrid_index
 
-        current_true_local_edge = np.argwhere(true_hybrid_edge_mask[current_true_hybrid_index] == 0).flatten()
+        current_true_local_edge = np.argwhere(true_local_edge_mask[current_true_hybrid_index] == 0).flatten()
 
-        self.true_hybrid_adjacent_matrix = (self.true_adjacent_matrix > 0) & (self.true_topological_adjacent_matrix_padded > 0)
+        self.true_hybrid_adjacent_matrix = self.true_adjacent_matrix & self.true_topological_adjacent_matrix_padded > 0
         self.true_hybrid_adjacent_matrix = np.delete(self.true_hybrid_adjacent_matrix, remove_indices, axis=0)
         self.true_hybrid_adjacent_matrix = np.delete(self.true_hybrid_adjacent_matrix, remove_indices, axis=1)
+        self.true_topological_adjacent_matrix_padded = np.delete(self.true_topological_adjacent_matrix_padded, remove_indices, axis=0)
+        self.true_topological_adjacent_matrix_padded = np.delete(self.true_topological_adjacent_matrix_padded, remove_indices, axis=1)
         true_hybrid_edge_mask = self.true_hybrid_adjacent_matrix
+        true_topological_edge_mask = self.true_topological_adjacent_matrix_padded
 
         n_true_hybrid_node = true_hybrid_node_coords.shape[0]
 
@@ -305,20 +313,22 @@ class Agent:
         current_true_hybrid_index = torch.tensor([current_true_hybrid_index]).reshape(1, 1, 1).to(self.device)
 
         state_edge_mask = torch.tensor(true_hybrid_edge_mask).unsqueeze(0).to(self.device)
+        state_topological_edge_mask = torch.tensor(true_topological_edge_mask).unsqueeze(0).to(self.device)
 
         padding = torch.nn.ConstantPad2d((0, LOCAL_NODE_PADDING_SIZE - n_true_hybrid_node, 0,
                                           LOCAL_NODE_PADDING_SIZE - n_true_hybrid_node), 1)
         state_edge_mask = padding(state_edge_mask)
+        state_topological_edge_mask = padding(state_topological_edge_mask)
 
         current_true_local_edge = torch.tensor(current_true_local_edge).unsqueeze(0).to(self.device)
         k_size = current_true_local_edge.size()[-1]
         padding = torch.nn.ConstantPad1d((0, LOCAL_K_PADDING_SIZE - k_size), 0)
         state_current_local_edge = padding(current_true_local_edge).unsqueeze(-1)
 
-        return [state_node_inputs, state_node_padding_mask, state_edge_mask, current_true_hybrid_index, state_current_local_edge]
+        return [state_node_inputs, state_node_padding_mask, state_edge_mask, state_topological_edge_mask, current_true_hybrid_index, state_current_local_edge]
 
     def select_next_waypoint(self, local_observation, greedy=False):
-        _, _, _, _, current_local_edge, _ = local_observation
+        _, _, _, _, _, current_local_edge, _ = local_observation
         with torch.no_grad():
             logp = self.policy_net(*local_observation)
 
@@ -416,13 +426,14 @@ class Agent:
         return local_map_info
 
     def save_observation(self, local_observation):
-        local_node_inputs, local_node_padding_mask, local_edge_mask, current_local_index, current_local_edge, local_edge_padding_mask = local_observation
-        self.add(self.episode_buffer, 'node_inputs', local_node_inputs)
-        self.add(self.episode_buffer, 'node_padding_mask', local_node_padding_mask.bool())
-        self.add(self.episode_buffer, 'edge_mask', local_edge_mask.bool())
-        self.add(self.episode_buffer, 'current_index', current_local_index)
-        self.add(self.episode_buffer, 'current_edge', current_local_edge)
-        self.add(self.episode_buffer, 'edge_padding_mask', local_edge_padding_mask.bool())
+        node_inputs, node_padding_mask, hybrid_edge_mask, top_edge_mask, current_index, current_edge, edge_padding_mask = local_observation
+        self.add(self.episode_buffer, 'node_inputs', node_inputs)
+        self.add(self.episode_buffer, 'node_padding_mask', node_padding_mask.bool())
+        self.add(self.episode_buffer, 'edge_mask', hybrid_edge_mask.bool())
+        self.add(self.episode_buffer, 'top_edge_mask', top_edge_mask.bool())
+        self.add(self.episode_buffer, 'current_index', current_index)
+        self.add(self.episode_buffer, 'current_edge', current_edge)
+        self.add(self.episode_buffer, 'edge_padding_mask', edge_padding_mask.bool())
 
     def save_action(self, action_index):
         self.add(self.episode_buffer, 'action', action_index.reshape(1, 1, 1).to(self.device))
@@ -440,28 +451,31 @@ class Agent:
         self.episode_buffer['next_node_inputs'] = copy.deepcopy(self.episode_buffer['node_inputs'])[1:]
         self.episode_buffer['next_node_padding_mask'] = copy.deepcopy(self.episode_buffer['node_padding_mask'])[1:]
         self.episode_buffer['next_edge_mask'] = copy.deepcopy(self.episode_buffer['edge_mask'])[1:]
+        self.episode_buffer['next_top_edge_mask'] = copy.deepcopy(self.episode_buffer['top_edge_mask'])[1:]
         self.episode_buffer['next_current_index'] = copy.deepcopy(self.episode_buffer['current_index'])[1:]
         self.episode_buffer['next_current_edge'] = copy.deepcopy(self.episode_buffer['current_edge'])[1:]
         self.episode_buffer['next_edge_padding_mask'] = copy.deepcopy(self.episode_buffer['edge_padding_mask'])[1:]
         self.episode_buffer['all_agent_next_indices'] = copy.deepcopy(self.episode_buffer['all_agent_indices'])[1:]
 
-        local_node_inputs, local_node_padding_mask, local_edge_mask, current_local_index, current_local_edge, local_edge_padding_mask = local_observation
-        self.episode_buffer['next_node_inputs'] += local_node_inputs
-        self.episode_buffer['next_node_padding_mask'] += local_node_padding_mask.bool()
-        self.episode_buffer['next_edge_mask'] += local_edge_mask.bool()
-        self.episode_buffer['next_current_index'] += current_local_index
-        self.episode_buffer['next_current_edge'] += current_local_edge
-        self.episode_buffer['next_edge_padding_mask'] += local_edge_padding_mask.bool()
+        node_inputs, node_padding_mask, hybrid_edge_mask, top_edge_mask, current_index, current_edge, edge_padding_mask = local_observation
+        self.episode_buffer['next_node_inputs'] += node_inputs
+        self.episode_buffer['next_node_padding_mask'] += node_padding_mask.bool()
+        self.episode_buffer['next_edge_mask'] += hybrid_edge_mask.bool()
+        self.episode_buffer['next_top_edge_mask'] += top_edge_mask.bool()
+        self.episode_buffer['next_current_index'] += current_index
+        self.episode_buffer['next_current_edge'] += current_edge
+        self.episode_buffer['next_edge_padding_mask'] += edge_padding_mask.bool()
         self.episode_buffer['all_agent_next_indices'] += torch.tensor(next_node_index_list).reshape(1, -1, 1).to(self.device)
         self.episode_buffer['next_all_agent_next_indices'] = copy.deepcopy(self.episode_buffer['all_agent_next_indices'])[1:]
         self.episode_buffer['next_all_agent_next_indices'] += copy.deepcopy(self.episode_buffer['all_agent_next_indices'])[-1:]
 
     def save_state(self, state):
-        state_node_inputs, state_node_padding_mask, state_edge_mask, current_true_hybrid_index, state_current_local_edge = state
+        state_node_inputs, state_node_padding_mask, state_edge_mask, state_top_edge_mask, current_true_hybrid_index, state_current_local_edge = state
 
         self.add(self.episode_buffer, 'state_node_inputs', state_node_inputs)
         self.add(self.episode_buffer, 'state_node_padding_mask', state_node_padding_mask.bool())
         self.add(self.episode_buffer, 'state_edge_mask', state_edge_mask.bool())
+        self.add(self.episode_buffer, 'state_top_edge_mask', state_top_edge_mask.bool())
         self.add(self.episode_buffer, 'current_state_index', current_true_hybrid_index)
         self.add(self.episode_buffer, 'current_state_edge', state_current_local_edge)
 
@@ -469,13 +483,15 @@ class Agent:
         self.episode_buffer['next_state_node_inputs'] = copy.deepcopy(self.episode_buffer['state_node_inputs'])[1:]
         self.episode_buffer['next_state_node_padding_mask'] = copy.deepcopy(self.episode_buffer['state_node_padding_mask'])[1:]
         self.episode_buffer['next_state_edge_mask'] = copy.deepcopy(self.episode_buffer['state_edge_mask'])[1:]
+        self.episode_buffer['next_state_top_edge_mask'] = copy.deepcopy(self.episode_buffer['state_top_edge_mask'])[1:]
         self.episode_buffer['next_current_state_index'] = copy.deepcopy(self.episode_buffer['current_state_index'])[1:]
         self.episode_buffer['next_current_state_edge'] = copy.deepcopy(self.episode_buffer['current_state_edge'])[1:]
 
-        state_node_inputs, state_node_padding_mask, state_edge_mask, current_true_hybrid_index, state_current_local_edge = state
+        state_node_inputs, state_node_padding_mask, state_edge_mask, state_top_edge_mask, current_true_hybrid_index, state_current_local_edge = state
         self.episode_buffer['next_state_node_inputs'] += state_node_inputs
         self.episode_buffer['next_state_node_padding_mask'] += state_node_padding_mask.bool()
         self.episode_buffer['next_state_edge_mask'] += state_edge_mask.bool()
+        self.episode_buffer['next_state_top_edge_mask'] += state_top_edge_mask.bool()
         self.episode_buffer['next_current_state_index'] += current_true_hybrid_index
         self.episode_buffer['next_current_state_edge'] += state_current_local_edge
 

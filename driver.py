@@ -157,6 +157,7 @@ def main():
                     node_inputs = prep(rollouts['node_inputs'])
                     node_padding_mask = prep(rollouts['node_padding_mask'])
                     edge_mask = prep(rollouts['edge_mask'])
+                    top_edge_mask = prep(rollouts['top_edge_mask'])
                     current_index = prep(rollouts['current_index'])
                     current_edge = prep(rollouts['current_edge'])
                     edge_padding_mask = prep(rollouts['edge_padding_mask'])
@@ -167,6 +168,7 @@ def main():
                     next_node_inputs = prep(rollouts['next_node_inputs'])
                     next_node_padding_mask = prep(rollouts['next_node_padding_mask'])
                     next_edge_mask = prep(rollouts['next_edge_mask'])
+                    next_top_edge_mask = prep(rollouts['next_top_edge_mask'])
                     next_current_index = prep(rollouts['next_current_index'])
                     next_current_edge = prep(rollouts['next_current_edge'])
                     next_edge_padding_mask = prep(rollouts['next_edge_padding_mask'])
@@ -175,21 +177,23 @@ def main():
                     state_node_inputs = prep(rollouts['state_node_inputs'])
                     state_node_padding_mask = prep(rollouts['state_node_padding_mask'])
                     state_edge_mask = prep(rollouts['state_edge_mask'])
+                    state_top_edge_mask = prep(rollouts['state_top_edge_mask'])
                     current_state_index = prep(rollouts['current_state_index'])
                     current_state_edge = prep(rollouts['current_state_edge'])
                     next_state_node_inputs = prep(rollouts['next_state_node_inputs'])
                     next_state_node_padding_mask = prep(rollouts['next_state_node_padding_mask'])
                     next_state_edge_mask = prep(rollouts['next_state_edge_mask'])
+                    next_state_top_edge_mask = prep(rollouts['next_state_top_edge_mask'])
                     next_current_state_index = prep(rollouts['next_current_state_index'])
                     next_current_state_edge = prep(rollouts['next_current_state_edge'])
 
-                    observation = [node_inputs, node_padding_mask, edge_mask, current_index,
+                    observation = [node_inputs, node_padding_mask, edge_mask, top_edge_mask, current_index,
                                    current_edge, edge_padding_mask]
-                    next_observation = [next_node_inputs, next_node_padding_mask, next_edge_mask,
+                    next_observation = [next_node_inputs, next_node_padding_mask, next_edge_mask, next_top_edge_mask,
                                         next_current_index, next_current_edge, next_edge_padding_mask]
-                    state = [state_node_inputs, state_node_padding_mask, state_edge_mask, current_state_index,
+                    state = [state_node_inputs, state_node_padding_mask, state_edge_mask, state_top_edge_mask, current_state_index,
                              current_state_edge, all_agent_indices, all_agent_next_indices]
-                    next_state = [next_state_node_inputs, next_state_node_padding_mask, next_state_edge_mask,
+                    next_state = [next_state_node_inputs, next_state_node_padding_mask, next_state_edge_mask, next_state_top_edge_mask,
                                   next_current_state_index, next_current_state_edge, all_agent_next_indices, next_all_agent_next_indices]
 
                     # SAC
@@ -327,7 +331,7 @@ def write_to_tensor_board(writer, tensorboard_data, curr_episode):
                 "Perf/Success Rate": success_rate,
                 "Perf/Explored Rate": explored_rate,
                 "Perf/Safe Rate": safe_rate,
-                "Perf/Safe Increase Percent": safe_increase_rate,
+                "Perf/Safe Increase Percent": safe_increase_rate
                }
     for k, v in metrics.items():
         writer.add_scalar(k, v, curr_episode)
