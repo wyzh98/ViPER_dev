@@ -203,33 +203,6 @@ class NodeManager:
 
         return cliques, topological_node_coords, topological_adjacent_matrix_padded
 
-    def get_hybrid_node_graph(self, robot_locations, all_node_coords, topological_node_coords, cliques):
-        robot_neighbor_indices = set()
-        all_node_coords_to_check = all_node_coords[:, 0] + all_node_coords[:, 1] * 1j
-        topological_node_coords_to_check = topological_node_coords[:, 0] + topological_node_coords[:, 1] * 1j
-        for loc in robot_locations:
-            robot_neighbor_indices.add(np.argwhere(all_node_coords_to_check == loc[0] + loc[1] * 1j)[0][0])
-            node = self.local_nodes_dict.find((loc[0], loc[1])).data
-            for neighbor in node.neighbor_list:
-                robot_neighbor_indices.add(np.argwhere(all_node_coords_to_check == neighbor[0] + neighbor[1] * 1j)[0][0])
-
-        local_node_indices = set()
-        for clique in cliques:
-            if set(clique) & robot_neighbor_indices:
-                local_node_indices.update(clique)
-
-        all_node_type = []  # 0: local, 1: clique center, -1: non-center (remove)
-        for idx, coords in enumerate(all_node_coords):
-            if idx in local_node_indices:
-                all_node_type.append(0)
-            else:
-                if coords[0] + coords[1] * 1j in topological_node_coords_to_check:
-                    all_node_type.append(1)
-                else:
-                    all_node_type.append(-1)
-
-        return all_node_type
-
     @staticmethod
     def find_cliques(all_node_coords, adjacent_matrix, min_clique_node=4):
         cardinals = np.array([[-1, 0], [1, 0], [0, 1], [0, -1], [-1, -1], [-1, 1], [1, -1], [1, 1]]) * NODE_RESOLUTION

@@ -106,7 +106,7 @@ def main():
     # initialize metric collector
     experience_buffer = {}
 
-    metric_name = ['travel_dist', 'max_travel_dist', 'success_rate', 'explored_rate', 'safe_rate', 'safe_increase_rate']
+    metric_name = ['max_travel_dist', 'success_rate', 'explored_rate', 'safe_rate']
     training_data = []
     perf_metrics = {}
     for n in metric_name:
@@ -178,23 +178,19 @@ def main():
                     state_node_padding_mask = prep(rollouts['state_node_padding_mask'])
                     state_edge_mask = prep(rollouts['state_edge_mask'])
                     state_top_edge_mask = prep(rollouts['state_top_edge_mask'])
-                    current_state_index = prep(rollouts['current_state_index'])
-                    current_state_edge = prep(rollouts['current_state_edge'])
                     next_state_node_inputs = prep(rollouts['next_state_node_inputs'])
                     next_state_node_padding_mask = prep(rollouts['next_state_node_padding_mask'])
                     next_state_edge_mask = prep(rollouts['next_state_edge_mask'])
                     next_state_top_edge_mask = prep(rollouts['next_state_top_edge_mask'])
-                    next_current_state_index = prep(rollouts['next_current_state_index'])
-                    next_current_state_edge = prep(rollouts['next_current_state_edge'])
 
                     observation = [node_inputs, node_padding_mask, edge_mask, top_edge_mask, current_index,
                                    current_edge, edge_padding_mask]
                     next_observation = [next_node_inputs, next_node_padding_mask, next_edge_mask, next_top_edge_mask,
                                         next_current_index, next_current_edge, next_edge_padding_mask]
-                    state = [state_node_inputs, state_node_padding_mask, state_edge_mask, state_top_edge_mask, current_state_index,
-                             current_state_edge, all_agent_indices, all_agent_next_indices]
+                    state = [state_node_inputs, state_node_padding_mask, state_edge_mask, state_top_edge_mask, current_index,
+                             current_edge, all_agent_indices, all_agent_next_indices]
                     next_state = [next_state_node_inputs, next_state_node_padding_mask, next_state_edge_mask, next_state_top_edge_mask,
-                                  next_current_state_index, next_current_state_edge, all_agent_next_indices, next_all_agent_next_indices]
+                                  next_current_index, next_current_edge, all_agent_next_indices, next_all_agent_next_indices]
 
                     # SAC
                     with torch.no_grad():
@@ -287,7 +283,7 @@ def main():
                 global_target_q_net2.eval()
 
             # save the model
-            if curr_episode % 1000 == 0:
+            if curr_episode % 500 == 0:
                 prefix = str(curr_episode) if curr_episode % 10000 == 0 else ""
                 print('Saving model', end='\n')
                 checkpoint = {"policy_model": global_policy_net.state_dict(),
@@ -316,7 +312,7 @@ def write_to_tensor_board(writer, tensorboard_data, curr_episode):
     tensorboard_data = np.array(tensorboard_data)
     tensorboard_data = list(np.nanmean(tensorboard_data, axis=0))
     (reward, value, policy_loss, q_value_loss, entropy, policy_grad_norm, q_value_grad_norm, log_alpha, alpha_loss,
-     travel_dist, max_travel_dist, success_rate, explored_rate, safe_rate, safe_increase_rate) = tensorboard_data
+     max_travel_dist, success_rate, explored_rate, safe_rate) = tensorboard_data
     metrics = { "Losses/Value": value,
                 "Losses/Policy Loss": policy_loss,
                 "Losses/Alpha Loss": alpha_loss,
@@ -326,13 +322,11 @@ def write_to_tensor_board(writer, tensorboard_data, curr_episode):
                 "Losses/Q Value Grad Norm": q_value_grad_norm,
                 "Losses/Log Alpha": log_alpha,
                 "Perf/Reward": reward,
-                "Perf/Travel Distance": travel_dist,
                 "Perf/Max Travel Distance": max_travel_dist,
                 "Perf/Success Rate": success_rate,
                 "Perf/Explored Rate": explored_rate,
                 "Perf/Safe Rate": safe_rate,
-                "Perf/Safe Increase Percent": safe_increase_rate
-               }
+                }
     for k, v in metrics.items():
         writer.add_scalar(k, v, curr_episode)
     if USE_WANDB:

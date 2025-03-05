@@ -336,9 +336,7 @@ class PolicyNet(nn.Module):
     def forward(self, node_inputs, node_padding_mask, edge_mask, top_edge_mask, current_index, current_edge, edge_padding_mask):
         enhanced_node_feature = self.encode_graph(node_inputs, node_padding_mask, edge_mask, top_edge_mask)
         current_node_feature, enhanced_current_node_feature = self.decode_state(enhanced_node_feature, current_index, node_padding_mask)
-        logp = self.output_policy(current_node_feature, enhanced_current_node_feature, enhanced_node_feature,
-                                  current_edge, edge_padding_mask)
-
+        logp = self.output_policy(current_node_feature, enhanced_current_node_feature, enhanced_node_feature, current_edge, edge_padding_mask)
         return logp
 
 
@@ -403,11 +401,8 @@ class QNet(nn.Module):
         q_values = self.q_values_layer(action_features)
         return q_values
 
-    def forward(self, node_inputs, node_padding_mask, edge_mask, top_edge_mask, current_index, current_edge,
-                all_agent_indices, all_agent_next_indices):
+    def forward(self, node_inputs, node_padding_mask, edge_mask, top_edge_mask, current_index, current_edge, all_agent_indices, all_agent_next_indices):
         enhanced_node_feature = self.encode_graph(node_inputs, node_padding_mask, edge_mask, top_edge_mask)
         current_node_feature, enhanced_current_node_feature = self.decode_state(enhanced_node_feature, current_index, node_padding_mask)
-        q_values = self.output_q(current_node_feature, enhanced_current_node_feature, enhanced_node_feature,
-                                 current_edge, current_index, all_agent_indices, all_agent_next_indices)
-
+        q_values = self.output_q(current_node_feature, enhanced_current_node_feature, enhanced_node_feature, current_edge, current_index, all_agent_indices, all_agent_next_indices)
         return q_values

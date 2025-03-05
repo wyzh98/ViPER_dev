@@ -217,14 +217,14 @@ class Env:
         color_list = ['r', 'b', 'g', 'y', 'm', 'c', 'k', (1,0.5,0.5), (1,0.5,0.5), (0.5,0.5,1)]
         cmap_list = ['Reds', 'Blues', 'Greens', 'YlOrBr', 'Purples', 'PuBuGn', 'Greys', 'Greys', 'RdPu', 'BuPu', 'GnBu']
         robot = robot_list[0]
-        nodes = get_cell_position_from_coords(robot.hybrid_node_coords, robot.safe_zone_info)
+        nodes = get_cell_position_from_coords(robot.local_node_coords, robot.safe_zone_info)
         alpha_mask = robot.safe_zone_info.map / 255 / 3
         plt.imshow(robot.safe_zone_info.map, cmap='Greens', alpha=alpha_mask)
-        plt.scatter(nodes[:, 0], nodes[:, 1], c=robot.hybrid_node_safe_utility, s=5, zorder=3)
+        plt.scatter(nodes[:, 0], nodes[:, 1], c=robot.safe_utility, s=5, zorder=3)
 
         for i in range(nodes.shape[0]):
             for j in range(i + 1, nodes.shape[0]):
-                if robot.hybrid_adjacent_matrix[i, j] == 0:
+                if robot.local_adjacent_matrix[i, j] == 0:
                     plt.plot([nodes[i, 0], nodes[j, 0]], [nodes[i, 1], nodes[j, 1]], c=(0.988, 0.557, 0.675), linewidth=1.5, zorder=1)
                 if robot.topological_adjacent_matrix_padded[i, j] == 0:
                     plt.plot([nodes[i, 0], nodes[j, 0]], [nodes[i, 1], nodes[j, 1]], c=(0.132, 0.347, 0.614), linewidth=1.5, zorder=2)
@@ -240,17 +240,21 @@ class Env:
             clique_coords = get_cell_position_from_coords(robot.local_node_coords[clique], robot.safe_zone_info).reshape(-1, 2)
             c = color_list[i % len(color_list)]
             plt.scatter(clique_coords[:, 0], clique_coords[:, 1], c=c, s=5, zorder=3)
+        for i in range(nodes.shape[0]):
+            for j in range(i + 1, nodes.shape[0]):
+                if robot.topological_adjacent_matrix_padded[i, j] == 0:
+                    plt.plot([nodes[i, 0], nodes[j, 0]], [nodes[i, 1], nodes[j, 1]], c=(0.132, 0.347, 0.614), linewidth=1.5, zorder=2)
 
         # plt.imshow(self.ground_truth, cmap='gray', vmin=0)
         # plt.axis('off')
-        # nodes = get_cell_position_from_coords(robot.true_hybrid_node_coords, robot.safe_zone_info)
+        # nodes = get_cell_position_from_coords(robot.true_node_coords, robot.safe_zone_info)
         # alpha_mask = robot.safe_zone_info.map / 255 / 3
         # plt.imshow(robot.safe_zone_info.map, cmap='Greens', alpha=alpha_mask)
-        # plt.scatter(nodes[:, 0], nodes[:, 1], c=[t for t in robot.true_node_type if t!=-1], s=5, zorder=2)
+        # plt.scatter(nodes[:, 0], nodes[:, 1], c='k', s=5, zorder=2)
         # for i in range(nodes.shape[0]):
         #     for j in range(i + 1, nodes.shape[0]):
-        #         if robot.true_hybrid_adjacent_matrix[i, j] == 0:
-        #             plt.plot([nodes[i, 0], nodes[j, 0]], [nodes[i, 1], nodes[j, 1]], c=(0.988, 0.557, 0.675), linewidth=1.5, zorder=1)
+        #         if robot.true_topological_adjacent_matrix_padded[i, j] == 0:
+        #             plt.plot([nodes[i, 0], nodes[j, 0]], [nodes[i, 1], nodes[j, 1]], c=(0.132, 0.347, 0.614), linewidth=1.5, zorder=1)
 
         plt.subplot(1, 3, 1)
         plt.imshow(self.robot_belief, cmap='gray')
